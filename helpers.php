@@ -18,31 +18,23 @@ use Namingo\Rately\Rately;
 
 /**
  * Sets up and returns a Logger instance.
- * 
- * @param string $logFilePath Full path to the log file.
- * @param string $channelName Name of the log channel (optional).
- * @return Logger
  */
 function setupLogger($logFilePath, $channelName = 'app') {
-    // Create a log channel
     $log = new Logger($channelName);
-
-    // Set up the console handler
     $consoleHandler = new StreamHandler('php://stdout', Logger::DEBUG);
     $consoleFormatter = new LineFormatter(
         "[%datetime%] %channel%.%level_name%: %message% %context% %extra%\n",
-        "Y-m-d H:i:s.u", // Date format
-        true, // Allow inline line breaks
-        true  // Ignore empty context and extra
+        "Y-m-d H:i:s.u",
+        true,
+        true
     );
     $consoleHandler->setFormatter($consoleFormatter);
     $log->pushHandler($consoleHandler);
 
-    // Set up the file handler
     $fileHandler = new RotatingFileHandler($logFilePath, 0, Logger::DEBUG);
     $fileFormatter = new LineFormatter(
         "[%datetime%] %channel%.%level_name%: %message% %context% %extra%\n",
-        "Y-m-d H:i:s.u" // Date format
+        "Y-m-d H:i:s.u"
     );
     $fileHandler->setFormatter($fileFormatter);
     $log->pushHandler($fileHandler);
@@ -57,7 +49,6 @@ function isIpWhitelisted($ip, $pdo) {
     return $count > 0;
 }
 
-// Function to update the permitted IPs from the database
 function updatePermittedIPs($pool, $permittedIPsTable) {
     $pdo = $pool->get();
     $query = "SELECT ip_address FROM whitelist";
@@ -65,22 +56,17 @@ function updatePermittedIPs($pool, $permittedIPsTable) {
     $permittedIPs = $stmt->fetchAll(PDO::FETCH_COLUMN, 0);
     $pool->put($pdo);
 
-    // Manually clear the table by removing each entry
     foreach ($permittedIPsTable as $key => $value) {
         $permittedIPsTable->del($key);
     }
 
-    // Insert new values
     foreach ($permittedIPs as $ip) {
         $permittedIPsTable->set($ip, ['ip_address' => $ip]);
     }
 }
 
 /**
- * Load and save zone files.
- *
- * @param Badcow\DNS\Zone $zone
- * @throws Exception if unable to save the zone file
+ * Save the zone file.
  */
 function saveZone($zone) {
     $zoneDir = $_ENV['BIND9_ZONE_DIR'];
@@ -93,80 +79,53 @@ function saveZone($zone) {
 }
 
 /**
- * Backup the configuration file before modifying.
- *
- * @param string $configFile
- * @throws Exception if unable to create a backup
+ * Backup the configuration file.
  */
 function backupConfigFile(string $configFile): void {
     $backupFile = $configFile . '.bak.' . date('YmdHis');
-
     if (!copy($configFile, $backupFile)) {
         throw new Exception("Failed to create backup of $configFile");
     }
 }
 
 /**
- * Remove a zone block from named.conf.local
- *
- * @param string $zoneName
- * @throws Exception if unable to modify the config file or zone block not found
+ * Remove a zone block from named.conf.local.
  */
 function removeZoneFromConfig(string $zoneName): void {
     $configFile = $_ENV['BIND9_CONF_FILE'];
-
-    // Backup the config file before modifying
     backupConfigFile($configFile);
-
-    // Read the current config file
     $configContent = file_get_contents($configFile);
     if ($configContent === false) {
         throw new Exception("Unable to read $configFile");
     }
-
-    // Define a regex pattern to match the zone block
     $pattern = '/zone\s+"'.preg_quote($zoneName, '/').'"\s*\{[^}]*\};\n?/i';
-
-    // Check if the zone block exists
     if (!preg_match($pattern, $configContent)) {
         throw new Exception("Zone block for '$zoneName' not found in $configFile");
     }
-
-    // Remove the zone block
     $newConfigContent = preg_replace($pattern, '', $configContent, 1);
-
     if ($newConfigContent === null) {
         throw new Exception("Error occurred while removing the zone block");
     }
-
-    // Write the updated config back to the file
     if (file_put_contents($configFile, $newConfigContent, LOCK_EX) === false) {
         throw new Exception("Unable to write to $configFile");
     }
 }
 
 /**
- * Append a new zone block to named.conf.local
- *
- * @param string $zoneName
- * @param string $zoneFilePath
- * @throws Exception if unable to write to the config file
+ * Append a new zone block to named.conf.local.
  */
 function addZoneToConfig(string $zoneName, string $zoneFilePath): void {
     $configFile = $_ENV['BIND9_CONF_FILE'];
-
-    // Backup the config file before modifying
     backupConfigFile($configFile);
-
-    // Define the zone block
     $zoneBlock = "\nzone \"$zoneName\" {\n    type master;\n    file \"$zoneFilePath\";\n};\n";
-
-    // Append the zone block to the config file
     if (file_put_contents($configFile, $zoneBlock, FILE_APPEND | LOCK_EX) === false) {
         throw new Exception("Unable to write to $configFile");
     }
 }
 
+/**
+ * Load a zone file.
+ */
 function loadZone($zoneName) {
     $zoneDir = $_ENV['BIND9_ZONE_DIR'];
     $zoneFile = "$zoneDir/$zoneName.zone";
@@ -178,23 +137,24 @@ function loadZone($zoneName) {
     return $zone;
 }
 
+/**
+ * Reload BIND9 configuration and notify slaves.
+ */
 function reloadBIND9() {
-    // Reload BIND9 configuration
     exec('sudo rndc reload', $output, $return_var);
     if ($return_var !== 0) {
         throw new Exception("Failed to reload BIND9: " . implode("\n", $output));
     }
-
-    // Notify slave servers
     exec('sudo rndc notify', $notify_output, $notify_return_var);
     if ($notify_return_var !== 0) {
         throw new Exception("Failed to notify slave servers: " . implode("\n", $notify_output));
     }
 }
 
-// Authentication Middleware
+/**
+ * Authentication middleware.
+ */
 function authenticate($request, $pdo, $log) {
-    // Get the token from the Authorization header
     $authHeader = $request->header['authorization'] ?? '';
     if (!$authHeader) {
         return false;
@@ -206,13 +166,11 @@ function authenticate($request, $pdo, $log) {
     }
 
     $token = $authParts[1];
-
     if (!$token) {
         return false;
     }
 
     try {
-        // Prepare statement to fetch session securely
         $stmt = $pdo->prepare('
             SELECT s.user_id, u.username, s.expires_at, s.ip_address, s.user_agent
             FROM sessions s
@@ -224,32 +182,24 @@ function authenticate($request, $pdo, $log) {
         $session = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$session) {
-            // Invalid token
             return false;
         }
-
-        // Check if the session has expired
         if (strtotime($session['expires_at']) < time()) {
-            // Session has expired
             return false;
         }
-
-        // Authentication successful
-        // Return user information (e.g., user ID and username)
         return [
             'user_id' => $session['user_id'],
             'username' => $session['username']
         ];
     } catch (Exception $e) {
-        // Log the exception internally without exposing details to the client
         $log->error('Authentication error: ' . $e->getMessage());
         return false;
     }
 }
 
 function generateInitialSerialNumber() {
-    $currentDate = date('Ymd'); // YYYYMMDD
-    return $currentDate . '01';  // Initial serial number
+    $currentDate = date('Ymd');
+    return $currentDate . '01';
 }
 
 function getCurrentSerialNumber($pdo, $domainName) {
@@ -267,29 +217,35 @@ function insertInitialSerialNumber($pdo, $domainName) {
 
 function updateSerialNumber($pdo, $domainName) {
     $currentSerial = getCurrentSerialNumber($pdo, $domainName);
-    $currentDate = date('Ymd'); // YYYYMMDD
-
-    // Extract date and change number (NN) from current serial number
+    $currentDate = date('Ymd');
     $serialDate = substr($currentSerial, 0, 8);
     $changeNumber = (int)substr($currentSerial, 8, 2);
 
     if ($serialDate === $currentDate) {
-        // Increment the change number
         $changeNumber++;
-        if ($changeNumber < 10) {
-            $changeNumber = '0' . $changeNumber; // Ensure it is two digits
-        }
+        $changeNumber = str_pad($changeNumber, 2, '0', STR_PAD_LEFT);
     } else {
-        // New date, reset change number to '01'
         $changeNumber = '01';
     }
 
-    // Construct new serial number
     $newSerial = $currentDate . $changeNumber;
-
-    // Update serial number in the database
     $stmt = $pdo->prepare('UPDATE zones SET current_soa = :serial_number WHERE domain_name = :domain_name');
     $stmt->execute([':serial_number' => $newSerial, ':domain_name' => $domainName]);
-
     return $newSerial;
+}
+
+/**
+ * Update the SOA record in the zone by updating its serial number.
+ */
+function updateZoneSoa($zone, $zoneName, $pdo) {
+    $newSerial = updateSerialNumber($pdo, $zoneName);
+    foreach ($zone->getResourceRecords() as $record) {
+        if (strtoupper($record->getType()) === 'SOA') {
+            $soaRdata = $record->getRdata();
+            $soaRdata->setSerial($newSerial);
+            $record->setRdata($soaRdata);
+            break;
+        }
+    }
+    saveZone($zone);
 }

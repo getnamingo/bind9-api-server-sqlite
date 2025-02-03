@@ -36,6 +36,7 @@ $pool = new Swoole\Database\PDOPool(
 );
 
 // Handler Functions
+
 function handleLogin($request, $pdo) {
     $body = json_decode($request->rawContent(), true);
     $username = trim($body['username'] ?? '');
@@ -46,28 +47,23 @@ function handleLogin($request, $pdo) {
     }
 
     try {
-        // Prepare statement to fetch user securely
         $stmt = $pdo->prepare('SELECT id, password FROM users WHERE username = :username LIMIT 1');
         $stmt->execute(['username' => $username]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        // Check if user exists and verify password
         if (!$user || !password_verify($password, $user['password'])) {
-            // Authentication failed
             return [401, ['error' => 'Invalid credentials']];
         }
 
-        // Generate secure session token
-        $token = bin2hex(random_bytes(32)); // Generates a 64-character token
+        $token = bin2hex(random_bytes(32)); // 64-character token
 
-        // Store session token in the database
         $stmt = $pdo->prepare('
             INSERT INTO sessions (user_id, token, ip_address, user_agent, created_at, expires_at)
             VALUES (:user_id, :token, :ip_address, :user_agent, NOW(), DATE_ADD(NOW(), INTERVAL 1 HOUR))
         ');
 
-        $ipAddress = inet_pton($request->server['remote_addr'] ?? ''); // Store IP address in binary format
-        $userAgent = substr($request->header['user-agent'] ?? '', 0, 255); // Limit user agent length to 255 characters
+        $ipAddress = inet_pton($request->server['remote_addr'] ?? '');
+        $userAgent = substr($request->header['user-agent'] ?? '', 0, 255);
 
         $stmt->execute([
             'user_id' => $user['id'],
@@ -76,10 +72,8 @@ function handleLogin($request, $pdo) {
             'user_agent' => $userAgent
         ]);
 
-        // Return session token to the client
         return [200, ['token' => $token]];
     } catch (Exception $e) {
-        // Log the exception internally without exposing details to the client
         error_log('Login error: ' . $e->getMessage());
         return [500, ['error' => 'Internal server error']];
     }
@@ -96,9 +90,7 @@ function handleGetZones() {
 
 /**
  * Handle adding a new zone.
- *
- * @param Swoole\Http\Request $request
- * @return array [status_code, response_body]
+ * Accepts optional SOA and NS parameters in the request body.
  */
 function handleAddZone($request, $pdo) {
     $body = json_decode($request->rawContent(), true);
@@ -108,7 +100,6 @@ function handleAddZone($request, $pdo) {
         return [400, ['error' => 'Zone name is required']];
     }
     
-    // Validate zone name (basic validation)
     if (!preg_match('/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/', $zoneName)) {
         return [400, ['error' => 'Invalid zone name format']];
     }
@@ -120,43 +111,54 @@ function handleAddZone($request, $pdo) {
         return [409, ['error' => 'Zone already exists']];
     }
 
-    // Create the zone using Badcow\DNS
     try {
         $zone = new Zone($zoneName.'.');
         
         $serialNumber = getCurrentSerialNumber($pdo, $zoneName);
-
         if (!$serialNumber) {
-            // No serial number found, insert the initial one
             $serialNumber = insertInitialSerialNumber($pdo, $zoneName);
         } else {
-            // Update the serial number
             $serialNumber = updateSerialNumber($pdo, $zoneName);
         }
         
-        // Add default SOA and NS records
+        // Use optional SOA parameters from request body; fallback to .env values.
+        $soa_ns    = $body['soa_ns']   ?? $_ENV['NS1'];
+        $soa_email = $body['soa_email'] ?? $_ENV['SOA_EMAIL'];
+        $refresh   = $body['refresh']   ?? $_ENV['REFRESH'];
+        $retry     = $body['retry']     ?? $_ENV['RETRY'];
+        $expire    = $body['expire']    ?? $_ENV['EXPIRE'];
+        $min_ttl   = $body['min_ttl']   ?? $_ENV['MIN_TTL'];
+
+        // Add default SOA record
         $soa = new ResourceRecord;
         $soa->setName('@');
         $soa->setClass(Classes::INTERNET);
         $soa->setRdata(Factory::Soa(
-            $_ENV['NS1'],
-            $_ENV['SOA_EMAIL'],
+            $soa_ns,
+            $soa_email,
             $serialNumber,
-            $_ENV['REFRESH'],
-            $_ENV['RETRY'],
-            $_ENV['EXPIRE'],
-            $_ENV['MIN_TTL']
+            $refresh,
+            $retry,
+            $expire,
+            $min_ttl
         ));
         $zone->addResourceRecord($soa);
 
-        // Add NS records (NS1 to NS13)
+        // Add NS records; check for override in request body, fallback to .env.
         for ($i = 1; $i <= 13; $i++) {
             $nsKey = 'NS' . $i;
-            if (isset($_ENV[$nsKey])) {
+            if (isset($body[$nsKey])) {
+                $nsValue = $body[$nsKey];
+            } elseif (isset($_ENV[$nsKey])) {
+                $nsValue = $_ENV[$nsKey];
+            } else {
+                continue;
+            }
+            if (!empty($nsValue)) {
                 $nsRecord = new ResourceRecord;
                 $nsRecord->setName('@');
                 $nsRecord->setClass(Classes::INTERNET);
-                $nsRecord->setRdata(Factory::Ns($_ENV[$nsKey]));
+                $nsRecord->setRdata(Factory::Ns($nsValue));
                 $zone->addResourceRecord($nsRecord);
             }
         }
@@ -166,16 +168,13 @@ function handleAddZone($request, $pdo) {
         return [500, ['error' => 'Failed to create zone file: ' . $e->getMessage()]];
     }
 
-    // Update named.conf.local
     try {
         addZoneToConfig($zoneName, $zoneFile);
     } catch (Exception $e) {
-        // Clean up by removing the created zone file
         unlink($zoneFile);
         return [500, ['error' => 'Failed to update named.conf.local: ' . $e->getMessage()]];
     }
 
-    // Reload BIND9 to apply changes
     try {
         reloadBIND9();
     } catch (Exception $e) {
@@ -187,9 +186,6 @@ function handleAddZone($request, $pdo) {
 
 /**
  * Handle deleting an existing zone.
- *
- * @param string $zoneName
- * @return array [status_code, response_body]
  */
 function handleDeleteZone($zoneName) {
     $zoneName = trim($zoneName);
@@ -198,7 +194,6 @@ function handleDeleteZone($zoneName) {
         return [400, ['error' => 'Zone name is required']];
     }
 
-    // Validate zone name (basic validation)
     if (!preg_match('/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/', $zoneName)) {
         return [400, ['error' => 'Invalid zone name format']];
     }
@@ -210,19 +205,16 @@ function handleDeleteZone($zoneName) {
         return [404, ['error' => 'Zone file does not exist']];
     }
 
-    // Remove zone block from named.conf.local
     try {
         removeZoneFromConfig($zoneName);
     } catch (Exception $e) {
         return [500, ['error' => 'Failed to update named.conf.local: ' . $e->getMessage()]];
     }
 
-    // Delete the zone file
     if (!unlink($zoneFile)) {
         return [500, ['error' => 'Failed to delete zone file']];
     }
 
-    // Reload BIND9 to apply changes
     try {
         reloadBIND9();
     } catch (Exception $e) {
@@ -252,7 +244,11 @@ function handleGetRecords($zoneName) {
     return [200, ['records' => $records]];
 }
 
-function handleAddRecord($zoneName, $request) {
+/**
+ * Handle adding a new DNS record.
+ * Now receives $pdo to allow updating the SOA record.
+ */
+function handleAddRecord($zoneName, $request, $pdo) {
     try {
         $zone = loadZone($zoneName);
     } catch (Exception $e) {
@@ -269,10 +265,9 @@ function handleAddRecord($zoneName, $request) {
         return [400, ['error' => 'Missing required fields']];
     }
 
-    // Check if the record already exists in the zone
     foreach ($zone->getResourceRecords() as $existingRecord) {
         if ($existingRecord->getName() === $name && $existingRecord->getRdata()->getType() === $type) {
-            // Compare the Rdata based on type
+            // Compare based on type (A, AAAA, CNAME, etc.)
             switch ($type) {
                 case 'A':
                 case 'AAAA':
@@ -325,7 +320,6 @@ function handleAddRecord($zoneName, $request) {
         }
     }
 
-    // Create a new DNS resource record
     $record = new ResourceRecord;
     $record->setName($name);
     if (is_numeric($ttl)) {
@@ -333,9 +327,7 @@ function handleAddRecord($zoneName, $request) {
     }
     $record->setClass(Classes::INTERNET);
 
-    // Dynamically create Rdata based on type
     try {
-        // Mapping record types to Factory methods
         $factoryMethods = [
             'A' => 'A',
             'AAAA' => 'AAAA',
@@ -371,22 +363,25 @@ function handleAddRecord($zoneName, $request) {
         return [400, ['error' => 'Invalid RDATA: ' . $e->getMessage()]];
     }
 
-    // Add the record to the zone and save
     $zone->addResourceRecord($record);
-    saveZone($zone);
-    reloadBIND9();
+
+    // Update SOA serial to trigger sync.
+    updateZoneSoa($zone, $zoneName, $pdo);
+
+    try {
+        reloadBIND9();
+    } catch (Exception $e) {
+        return [500, ['error' => 'Failed to reload BIND9: ' . $e->getMessage()]];
+    }
 
     return [201, ['message' => 'Record added successfully']];
 }
 
 /**
  * Handle updating an existing DNS record.
- *
- * @param string $zoneName The name of the DNS zone.
- * @param Swoole\Http\Request $request The HTTP request containing update details.
- * @return array [status_code, response_body]
+ * Now receives $pdo to update the SOA record.
  */
-function handleUpdateRecord($zoneName, $request) {
+function handleUpdateRecord($zoneName, $request, $pdo) {
     try {
         $zone = loadZone($zoneName);
     } catch (Exception $e) {
@@ -395,12 +390,10 @@ function handleUpdateRecord($zoneName, $request) {
 
     $body = json_decode($request->rawContent(), true);
 
-    // Extract identifying information for the record to be updated
     $currentName = trim($body['current_name'] ?? '');
     $currentType = strtoupper(trim($body['current_type'] ?? ''));
     $currentRdata = trim($body['current_rdata'] ?? '');
 
-    // Extract new data for the record
     $newName = trim($body['new_name'] ?? $currentName);
     $newTtl = isset($body['new_ttl']) ? intval($body['new_ttl']) : 3600;
     $newRdata = trim($body['new_rdata'] ?? $currentRdata);
@@ -410,7 +403,6 @@ function handleUpdateRecord($zoneName, $request) {
         return [400, ['error' => 'Current record name, type, and rdata are required for identification']];
     }
 
-    // Find the record by current_name, current_type, and current_rdata
     $recordToUpdate = null;
     foreach ($zone->getResourceRecords() as $record) {
         if (
@@ -427,7 +419,6 @@ function handleUpdateRecord($zoneName, $request) {
         return [404, ['error' => 'Record not found']];
     }
 
-    // Update the record with new values
     if ($newName) {
         $recordToUpdate->setName($newName);
     }
@@ -435,9 +426,7 @@ function handleUpdateRecord($zoneName, $request) {
         $recordToUpdate->setTtl($newTtl);
     }
     if ($newRdata) {
-        // Dynamically create Rdata based on type
         try {
-            // Mapping record types to Factory methods
             $factoryMethods = [
                 'A' => 'A',
                 'AAAA' => 'AAAA',
@@ -468,7 +457,7 @@ function handleUpdateRecord($zoneName, $request) {
             } else {
                 $rdataInstance = \Badcow\DNS\Rdata\Factory::$methodName($newRdata);
             }
-            $record->setRdata($rdataInstance);
+            $recordToUpdate->setRdata($rdataInstance);
         } catch (Exception $e) {
             return [400, ['error' => 'Invalid RDATA: ' . $e->getMessage()]];
         }
@@ -477,14 +466,9 @@ function handleUpdateRecord($zoneName, $request) {
         $recordToUpdate->setComment($newComment);
     }
 
-    // Save the updated zone
-    try {
-        saveZone($zone);
-    } catch (Exception $e) {
-        return [500, ['error' => 'Failed to save updated zone: ' . $e->getMessage()]];
-    }
+    // Update SOA serial for the zone update.
+    updateZoneSoa($zone, $zoneName, $pdo);
 
-    // Reload BIND9 to apply changes
     try {
         reloadBIND9();
     } catch (Exception $e) {
@@ -496,12 +480,9 @@ function handleUpdateRecord($zoneName, $request) {
 
 /**
  * Handle deleting an existing DNS record.
- *
- * @param string $zoneName The name of the DNS zone.
- * @param Swoole\Http\Request $request The HTTP request containing deletion details.
- * @return array [status_code, response_body]
+ * Now receives $pdo to update the SOA record.
  */
-function handleDeleteRecord($zoneName, $request) {
+function handleDeleteRecord($zoneName, $request, $pdo) {
     try {
         $zone = loadZone($zoneName);
     } catch (Exception $e) {
@@ -510,7 +491,6 @@ function handleDeleteRecord($zoneName, $request) {
 
     $body = json_decode($request->rawContent(), true);
 
-    // Extract identifying information for the record to be deleted
     $recordName = trim($body['name'] ?? '');
     $recordType = strtoupper(trim($body['type'] ?? ''));
     if ($recordType === 'DS' || $recordType === 'MX') {
@@ -523,14 +503,12 @@ function handleDeleteRecord($zoneName, $request) {
         return [400, ['error' => 'Record name, type, and rdata are required for identification']];
     }
 
-    // Find the record by name, type, and rdata
     $recordToDelete = null;
     foreach ($zone->getResourceRecords() as $record) {
         if (
             strtolower($record->getName()) === strtolower($recordName) &&
             strtoupper($record->getType()) === strtoupper($recordType)
         ) {
-            // Handle DS record comparison
             if ($recordType === 'DS') {
                 $dsRecord = $record->getRdata();
                 if ($dsRecord->getKeyTag() == $recordRdata['keytag'] &&
@@ -548,7 +526,6 @@ function handleDeleteRecord($zoneName, $request) {
                     break;
                 }
             } else {
-                // Handle other record types
                 if (strtolower($record->getRdata()->toText()) === strtolower($recordRdata)) {
                     $recordToDelete = $record;
                     break;
@@ -561,17 +538,11 @@ function handleDeleteRecord($zoneName, $request) {
         return [404, ['error' => 'Record not found']];
     }
 
-    // Remove the record from the zone
     $zone->remove($recordToDelete);
 
-    // Save the updated zone
-    try {
-        saveZone($zone);
-    } catch (Exception $e) {
-        return [500, ['error' => 'Failed to save updated zone: ' . $e->getMessage()]];
-    }
+    // Update SOA serial for the zone update.
+    updateZoneSoa($zone, $zoneName, $pdo);
 
-    // Reload BIND9 to apply changes
     try {
         reloadBIND9();
     } catch (Exception $e) {
@@ -593,10 +564,10 @@ $server->set([
     'dispatch_mode' => 1,
     'open_tcp_nodelay' => true,
     'max_conn' => 1024,
-    'buffer_output_size' => 2 * 1024 * 1024,  // 2MB
+    'buffer_output_size' => 2 * 1024 * 1024,
     'heartbeat_check_interval' => 60,
-    'heartbeat_idle_time' => 600,  // 10 minutes
-    'package_max_length' => 2 * 1024 * 1024,  // 2MB
+    'heartbeat_idle_time' => 600,
+    'package_max_length' => 2 * 1024 * 1024,
     'reload_async' => true,
     'http_compression' => true
 ]);
@@ -604,20 +575,34 @@ $server->set([
 $rateLimiter = new Rately();
 $log->info('BIND9 api server started at http://127.0.0.1:7650');
 
+// Set up a periodic cleanup of expired sessions every 60 seconds.
+Swoole\Timer::tick(60000, function() use ($pool, $log) {
+    $pdo = $pool->get();
+    try {
+        $stmt = $pdo->prepare("DELETE FROM sessions WHERE expires_at < NOW()");
+        $stmt->execute();
+        $removed = $stmt->rowCount();
+        $log->info("Expired sessions cleanup executed, removed {$removed} sessions.");
+    } catch (Exception $e) {
+        $log->error("Failed to clean up expired sessions: " . $e->getMessage());
+    }
+    $pool->put($pdo);
+});
+
 $server->on("request", function (Request $request, Response $response) use ($pool, $log, $rateLimiter) {
-    // Set CORS headers if needed
     $response->header("Content-Type", "application/json");
     
-    // Get a PDO connection from the pool
     $pdo = $pool->get();
 
     $remoteAddr = $request->server['remote_addr'];
     if (!isIpWhitelisted($remoteAddr, $pdo)) {
         if (($_ENV['RATELY'] == true) && ($rateLimiter->isRateLimited('bind9_api', $remoteAddr, $_ENV['RATE_LIMIT'], $_ENV['RATE_PERIOD']))) {
-            $log->error('rate limit exceeded for ' . $remoteAddr);
+            $log->error('Rate limit exceeded for ' . $remoteAddr);
             $response->header('Content-Type', 'application/json');
             $response->status(429);
             $response->end(json_encode(['error' => 'Rate limit exceeded. Please try again later.']));
+            $pool->put($pdo);
+            return;
         }
     }
 
@@ -625,20 +610,19 @@ $server->on("request", function (Request $request, Response $response) use ($poo
         $path = $request->server['request_uri'];
         $method = $request->server['request_method'];
 
-        // Routing
-        // Authentication route does not require auth
         if ($path === '/login' && $method === 'POST') {
             list($status, $body) = handleLogin($request, $pdo);
             $response->status($status);
             $response->end(json_encode($body));
+            $pool->put($pdo);
             return;
         }
 
-        // All other routes require authentication
         $user = authenticate($request, $pdo, $log);
         if (!$user) {
             $response->status(401);
             $response->end(json_encode(['error' => 'Unauthorized']));
+            $pool->put($pdo);
             return;
         }
 
@@ -648,11 +632,13 @@ $server->on("request", function (Request $request, Response $response) use ($poo
                 list($status, $body) = handleGetZones();
                 $response->status($status);
                 $response->end(json_encode($body));
+                $pool->put($pdo);
                 return;
             } elseif ($method === 'POST') {
                 list($status, $body) = handleAddZone($request, $pdo);
                 $response->status($status);
                 $response->end(json_encode($body));
+                $pool->put($pdo);
                 return;
             }
         }
@@ -663,61 +649,60 @@ $server->on("request", function (Request $request, Response $response) use ($poo
             list($status, $body) = handleDeleteZone($zoneName);
             $response->status($status);
             $response->end(json_encode($body));
+            $pool->put($pdo);
             return;
         }
 
         // Records Management
-        // GET /zones/{zone}/records
         if (preg_match('#^/zones/([^/]+)/records$#', $path, $matches)) {
             $zoneName = $matches[1];
             if ($method === 'GET') {
                 list($status, $body) = handleGetRecords($zoneName);
                 $response->status($status);
                 $response->end(json_encode($body));
+                $pool->put($pdo);
                 return;
             } elseif ($method === 'POST') {
-                list($status, $body) = handleAddRecord($zoneName, $request);
+                list($status, $body) = handleAddRecord($zoneName, $request, $pdo);
                 $response->status($status);
                 $response->end(json_encode($body));
+                $pool->put($pdo);
                 return;
             }
         }
 
-        // Update/Delete Record: PUT or DELETE /zones/{zone}/records/{record_id}
         if (preg_match('#^/zones/([^/]+)/records/([^/]+)$#', $path, $matches)) {
             $zoneName = $matches[1];
-            $recordId = $matches[2];
+            // $recordId is currently unused.
             if ($method === 'PUT') {
-                list($status, $body) = handleUpdateRecord($zoneName, $request);
+                list($status, $body) = handleUpdateRecord($zoneName, $request, $pdo);
                 $response->status($status);
                 $response->end(json_encode($body));
+                $pool->put($pdo);
                 return;
             } elseif ($method === 'DELETE') {
-                list($status, $body) = handleDeleteRecord($zoneName, $request);
+                list($status, $body) = handleDeleteRecord($zoneName, $request, $pdo);
                 $response->status($status);
                 $response->end(json_encode($body));
+                $pool->put($pdo);
                 return;
             }
         }
 
-        // If no route matched
         $log->info('Path Not Found');
         $response->status(404);
         $response->end(json_encode(['error' => 'Path Not Found']));
     } catch (PDOException $e) {
-        // Handle database exceptions
         $log->error('Database error: ' . $e->getMessage());
         $response->status(500);
         $response->header('Content-Type', 'application/json');
         $response->end(json_encode(['Database error:' => $e->getMessage()]));
     } catch (Throwable $e) {
-        // Catch any other exceptions or errors
         $log->error('Error: ' . $e->getMessage());
         $response->status(500);
         $response->header('Content-Type', 'application/json');
         $response->end(json_encode(['Error:' => $e->getMessage()]));
     } finally {
-        // Return the connection to the pool
         $pool->put($pdo);
     }
 });

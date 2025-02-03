@@ -25,7 +25,9 @@ MIN_TTL=86400
 # List of name servers (NS) for the zone. Add up to NS13 if needed.
 NS1=ns1.example.com.
 NS2=ns2.example.com.
-# NS3=ns3.example.com.
+NS3=ns3.example.com.
+NS4=ns4.example.com.
+NS5=ns5.example.com.
 # Continue adding NS records up to NS13, as needed...
 
 # Database connection settings for the application:
