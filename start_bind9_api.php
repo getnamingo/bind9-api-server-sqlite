@@ -40,6 +40,10 @@ $pool = new Swoole\Database\PDOPool(
 function handleLogin($request, $pdo) {
     try {
         $body = json_decode($request->rawContent(), true, 512, JSON_THROW_ON_ERROR);
+
+        if (empty($body) || !is_array($body)) {
+            return [400, ['error' => 'Empty or invalid JSON payload']];
+        }
     } catch (JsonException $e) {
         return [400, ['error' => 'Invalid JSON: ' . $e->getMessage()]];
     }
@@ -99,6 +103,10 @@ function handleGetZones() {
 function handleAddZone($request, $pdo) {
     try {
         $body = json_decode($request->rawContent(), true, 512, JSON_THROW_ON_ERROR);
+
+        if (empty($body) || !is_array($body)) {
+            return [400, ['error' => 'Empty or invalid JSON payload']];
+        }
     } catch (JsonException $e) {
         return [400, ['error' => 'Invalid JSON: ' . $e->getMessage()]];
     }
@@ -108,7 +116,7 @@ function handleAddZone($request, $pdo) {
         return [400, ['error' => 'Zone name is required']];
     }
     
-    if (!preg_match('/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/', $zoneName)) {
+    if (!isValidDomainName($zoneName)) {
         return [400, ['error' => 'Invalid zone name format']];
     }
 
@@ -202,7 +210,7 @@ function handleDeleteZone($zoneName) {
         return [400, ['error' => 'Zone name is required']];
     }
 
-    if (!preg_match('/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/', $zoneName)) {
+    if (!isValidDomainName($zoneName)) {
         return [400, ['error' => 'Invalid zone name format']];
     }
 
@@ -233,6 +241,10 @@ function handleDeleteZone($zoneName) {
 }
 
 function handleGetRecords($zoneName) {
+    if (empty($zoneName) || !isValidDomainName($zoneName)) {
+        return [400, ['error' => 'Invalid or empty zone name']];
+    }
+
     try {
         $zone = loadZone($zoneName);
     } catch (Exception $e) {
@@ -257,6 +269,10 @@ function handleGetRecords($zoneName) {
  * Now receives $pdo to allow updating the SOA record.
  */
 function handleAddRecord($zoneName, $request, $pdo) {
+    if (empty($zoneName) || !isValidDomainName($zoneName)) {
+        return [400, ['error' => 'Invalid or empty zone name']];
+    }
+
     try {
         $zone = loadZone($zoneName);
     } catch (Exception $e) {
@@ -265,6 +281,10 @@ function handleAddRecord($zoneName, $request, $pdo) {
 
     try {
         $body = json_decode($request->rawContent(), true, 512, JSON_THROW_ON_ERROR);
+
+        if (empty($body) || !is_array($body)) {
+            return [400, ['error' => 'Empty or invalid JSON payload']];
+        }
     } catch (JsonException $e) {
         return [400, ['error' => 'Invalid JSON: ' . $e->getMessage()]];
     }
@@ -402,6 +422,10 @@ function handleUpdateRecord($zoneName, $request, $pdo) {
 
     try {
         $body = json_decode($request->rawContent(), true, 512, JSON_THROW_ON_ERROR);
+
+        if (empty($body) || !is_array($body)) {
+            return [400, ['error' => 'Empty or invalid JSON payload']];
+        }
     } catch (JsonException $e) {
         return [400, ['error' => 'Invalid JSON: ' . $e->getMessage()]];
     }
@@ -499,6 +523,10 @@ function handleUpdateRecord($zoneName, $request, $pdo) {
  * Now receives $pdo to update the SOA record.
  */
 function handleDeleteRecord($zoneName, $request, $pdo) {
+    if (empty($zoneName) || !isValidDomainName($zoneName)) {
+        return [400, ['error' => 'Invalid or empty zone name']];
+    }
+
     try {
         $zone = loadZone($zoneName);
     } catch (Exception $e) {
@@ -507,6 +535,10 @@ function handleDeleteRecord($zoneName, $request, $pdo) {
 
     try {
         $body = json_decode($request->rawContent(), true, 512, JSON_THROW_ON_ERROR);
+
+        if (empty($body) || !is_array($body)) {
+            return [400, ['error' => 'Empty or invalid JSON payload']];
+        }
     } catch (JsonException $e) {
         return [400, ['error' => 'Invalid JSON: ' . $e->getMessage()]];
     }

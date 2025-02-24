@@ -262,3 +262,8 @@ function updateZoneSoa($zone, $zoneName, $pdo) {
     }
     saveZone($zone);
 }
+
+function isValidDomainName($domain) {
+    return preg_match('/^(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/', $domain) || // Regular domain
+           preg_match('/^xn--[a-zA-Z0-9-]+$/', $domain); // IDN (Punycode)
+}
