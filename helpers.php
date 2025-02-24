@@ -153,11 +153,11 @@ function loadZone($zoneName) {
 function reloadBIND9() {
     exec('sudo rndc reload', $output, $return_var);
     if ($return_var !== 0) {
-        throw new Exception("Failed to reload BIND9: " . implode("\n", $output));
+        throw new Exception(implode("\n", $output));
     }
-    exec('sudo rndc notify', $notify_output, $notify_return_var);
+    exec('sudo rndc notify 2>&1', $notify_output, $notify_return_var);
     if ($notify_return_var !== 0) {
-        throw new Exception("Failed to notify slave servers: " . implode("\n", $notify_output));
+        error_log("Failed to notify slave servers: " . implode("\n", $notify_output));
     }
 }
 

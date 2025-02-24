@@ -642,121 +642,123 @@ Swoole\Timer::tick(60000, function() use ($pool, $log) {
 });
 
 $server->on("request", function (Request $request, Response $response) use ($pool, $log, $rateLimiter) {
-    $response->header("Content-Type", "application/json");
-    
-    $pdo = $pool->get();
+    Swoole\Coroutine\go(function () use ($request, $response, $pool, $log, $rateLimiter) {
+        $response->header("Content-Type", "application/json");
+        
+        $pdo = $pool->get();
 
-    $remoteAddr = $request->server['remote_addr'];
-    if (!isIpWhitelisted($remoteAddr, $pdo)) {
-        if (($_ENV['RATELY'] == true) && ($rateLimiter->isRateLimited('bind9_api', $remoteAddr, $_ENV['RATE_LIMIT'], $_ENV['RATE_PERIOD']))) {
-            $log->error('Rate limit exceeded for ' . $remoteAddr);
+        $remoteAddr = $request->server['remote_addr'];
+        if (!isIpWhitelisted($remoteAddr, $pdo)) {
+            if (($_ENV['RATELY'] == true) && ($rateLimiter->isRateLimited('bind9_api', $remoteAddr, $_ENV['RATE_LIMIT'], $_ENV['RATE_PERIOD']))) {
+                $log->error('Rate limit exceeded for ' . $remoteAddr);
+                $response->header('Content-Type', 'application/json');
+                $response->status(429);
+                $response->end(json_encode(['error' => 'Rate limit exceeded. Please try again later.']));
+                $pool->put($pdo);
+                return;
+            }
+        }
+
+        try {
+            $path = $request->server['request_uri'];
+            $method = $request->server['request_method'];
+
+            if ($path === '/login' && $method === 'POST') {
+                list($status, $body) = handleLogin($request, $pdo);
+                $response->status($status);
+                $response->end(json_encode($body));
+                $pool->put($pdo);
+                return;
+            }
+
+            $user = authenticate($request, $pdo, $log);
+            if (!$user) {
+                $response->status(401);
+                $response->end(json_encode(['error' => 'Unauthorized']));
+                $pool->put($pdo);
+                return;
+            }
+
+            // Zones Management
+            if ($path === '/zones') {
+                if ($method === 'GET') {
+                    list($status, $body) = handleGetZones();
+                    $response->status($status);
+                    $response->end(json_encode($body));
+                    $pool->put($pdo);
+                    return;
+                } elseif ($method === 'POST') {
+                    list($status, $body) = handleAddZone($request, $pdo);
+                    $response->status($status);
+                    $response->end(json_encode($body));
+                    $pool->put($pdo);
+                    return;
+                }
+            }
+
+            // Delete Zone: DELETE /zones/{zone}
+            if (preg_match('#^/zones/([^/]+)$#', $path, $matches) && $method === 'DELETE') {
+                $zoneName = $matches[1];
+                list($status, $body) = handleDeleteZone($zoneName);
+                $response->status($status);
+                $response->end(json_encode($body));
+                $pool->put($pdo);
+                return;
+            }
+
+            // Records Management
+            if (preg_match('#^/zones/([^/]+)/records$#', $path, $matches)) {
+                $zoneName = $matches[1];
+                if ($method === 'GET') {
+                    list($status, $body) = handleGetRecords($zoneName);
+                    $response->status($status);
+                    $response->end(json_encode($body));
+                    $pool->put($pdo);
+                    return;
+                } elseif ($method === 'POST') {
+                    list($status, $body) = handleAddRecord($zoneName, $request, $pdo);
+                    $response->status($status);
+                    $response->end(json_encode($body));
+                    $pool->put($pdo);
+                    return;
+                }
+            }
+
+            if (preg_match('#^/zones/([^/]+)/records/([^/]+)$#', $path, $matches)) {
+                $zoneName = $matches[1];
+                // $recordId is currently unused.
+                if ($method === 'PUT') {
+                    list($status, $body) = handleUpdateRecord($zoneName, $request, $pdo);
+                    $response->status($status);
+                    $response->end(json_encode($body));
+                    $pool->put($pdo);
+                    return;
+                } elseif ($method === 'DELETE') {
+                    list($status, $body) = handleDeleteRecord($zoneName, $request, $pdo);
+                    $response->status($status);
+                    $response->end(json_encode($body));
+                    $pool->put($pdo);
+                    return;
+                }
+            }
+
+            $log->info('Path Not Found');
+            $response->status(404);
+            $response->end(json_encode(['error' => 'Path Not Found']));
+        } catch (PDOException $e) {
+            $log->error('Database error: ' . $e->getMessage());
+            $response->status(500);
             $response->header('Content-Type', 'application/json');
-            $response->status(429);
-            $response->end(json_encode(['error' => 'Rate limit exceeded. Please try again later.']));
+            $response->end(json_encode(['Database error:' => $e->getMessage()]));
+        } catch (Throwable $e) {
+            $log->error('Error: ' . $e->getMessage());
+            $response->status(500);
+            $response->header('Content-Type', 'application/json');
+            $response->end(json_encode(['Error:' => $e->getMessage()]));
+        } finally {
             $pool->put($pdo);
-            return;
         }
-    }
-
-    try {
-        $path = $request->server['request_uri'];
-        $method = $request->server['request_method'];
-
-        if ($path === '/login' && $method === 'POST') {
-            list($status, $body) = handleLogin($request, $pdo);
-            $response->status($status);
-            $response->end(json_encode($body));
-            $pool->put($pdo);
-            return;
-        }
-
-        $user = authenticate($request, $pdo, $log);
-        if (!$user) {
-            $response->status(401);
-            $response->end(json_encode(['error' => 'Unauthorized']));
-            $pool->put($pdo);
-            return;
-        }
-
-        // Zones Management
-        if ($path === '/zones') {
-            if ($method === 'GET') {
-                list($status, $body) = handleGetZones();
-                $response->status($status);
-                $response->end(json_encode($body));
-                $pool->put($pdo);
-                return;
-            } elseif ($method === 'POST') {
-                list($status, $body) = handleAddZone($request, $pdo);
-                $response->status($status);
-                $response->end(json_encode($body));
-                $pool->put($pdo);
-                return;
-            }
-        }
-
-        // Delete Zone: DELETE /zones/{zone}
-        if (preg_match('#^/zones/([^/]+)$#', $path, $matches) && $method === 'DELETE') {
-            $zoneName = $matches[1];
-            list($status, $body) = handleDeleteZone($zoneName);
-            $response->status($status);
-            $response->end(json_encode($body));
-            $pool->put($pdo);
-            return;
-        }
-
-        // Records Management
-        if (preg_match('#^/zones/([^/]+)/records$#', $path, $matches)) {
-            $zoneName = $matches[1];
-            if ($method === 'GET') {
-                list($status, $body) = handleGetRecords($zoneName);
-                $response->status($status);
-                $response->end(json_encode($body));
-                $pool->put($pdo);
-                return;
-            } elseif ($method === 'POST') {
-                list($status, $body) = handleAddRecord($zoneName, $request, $pdo);
-                $response->status($status);
-                $response->end(json_encode($body));
-                $pool->put($pdo);
-                return;
-            }
-        }
-
-        if (preg_match('#^/zones/([^/]+)/records/([^/]+)$#', $path, $matches)) {
-            $zoneName = $matches[1];
-            // $recordId is currently unused.
-            if ($method === 'PUT') {
-                list($status, $body) = handleUpdateRecord($zoneName, $request, $pdo);
-                $response->status($status);
-                $response->end(json_encode($body));
-                $pool->put($pdo);
-                return;
-            } elseif ($method === 'DELETE') {
-                list($status, $body) = handleDeleteRecord($zoneName, $request, $pdo);
-                $response->status($status);
-                $response->end(json_encode($body));
-                $pool->put($pdo);
-                return;
-            }
-        }
-
-        $log->info('Path Not Found');
-        $response->status(404);
-        $response->end(json_encode(['error' => 'Path Not Found']));
-    } catch (PDOException $e) {
-        $log->error('Database error: ' . $e->getMessage());
-        $response->status(500);
-        $response->header('Content-Type', 'application/json');
-        $response->end(json_encode(['Database error:' => $e->getMessage()]));
-    } catch (Throwable $e) {
-        $log->error('Error: ' . $e->getMessage());
-        $response->status(500);
-        $response->header('Content-Type', 'application/json');
-        $response->end(json_encode(['Error:' => $e->getMessage()]));
-    } finally {
-        $pool->put($pdo);
-    }
+    });
 });
 
 $server->start();
