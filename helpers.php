@@ -79,9 +79,6 @@ function saveZone($zone) {
     }
     $zoneFile = "$zoneDir/" . $zoneName . ".zone";
     $realPath = realpath($zoneFile);
-    if (strpos($realPath, realpath($zoneDir)) !== 0) {
-        throw new Exception("Invalid zone path");
-    }
     $builder = new AlignedBuilder();
     if (file_put_contents($zoneFile, $builder->build($zone), LOCK_EX) === false) {
         throw new Exception("Failed to save zone file at $zoneFile");
