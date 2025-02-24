@@ -43,8 +43,11 @@ function setupLogger($logFilePath, $channelName = 'app') {
 }
 
 function isIpWhitelisted($ip, $pdo) {
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM whitelist WHERE ip_address = ?");
-    $stmt->execute([$ip]);
+    if (!filter_var($ip, FILTER_VALIDATE_IP)) {
+        return false;
+    }
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM whitelist WHERE ip_address = :ip");
+    $stmt->execute(['ip' => $ip]);
     $count = $stmt->fetchColumn();
     return $count > 0;
 }
@@ -71,7 +74,14 @@ function updatePermittedIPs($pool, $permittedIPsTable) {
 function saveZone($zone) {
     $zoneDir = $_ENV['BIND9_ZONE_DIR'];
     $zoneName = rtrim($zone->getName(), '.');
+    if (!preg_match('/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/', $zoneName)) {
+        throw new Exception("Invalid zone name");
+    }
     $zoneFile = "$zoneDir/" . $zoneName . ".zone";
+    $realPath = realpath($zoneFile);
+    if (strpos($realPath, realpath($zoneDir)) !== 0) {
+        throw new Exception("Invalid zone path");
+    }
     $builder = new AlignedBuilder();
     if (file_put_contents($zoneFile, $builder->build($zone), LOCK_EX) === false) {
         throw new Exception("Failed to save zone file at $zoneFile");
@@ -83,6 +93,9 @@ function saveZone($zone) {
  */
 function backupConfigFile(string $configFile): void {
     $backupFile = $configFile . '.bak.' . date('YmdHis');
+    if (!file_exists($configFile) || !is_readable($configFile)) {
+        throw new Exception("Invalid configuration file");
+    }
     if (!copy($configFile, $backupFile)) {
         throw new Exception("Failed to create backup of $configFile");
     }

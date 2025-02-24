@@ -38,7 +38,11 @@ $pool = new Swoole\Database\PDOPool(
 // Handler Functions
 
 function handleLogin($request, $pdo) {
-    $body = json_decode($request->rawContent(), true);
+    try {
+        $body = json_decode($request->rawContent(), true, 512, JSON_THROW_ON_ERROR);
+    } catch (JsonException $e) {
+        return [400, ['error' => 'Invalid JSON: ' . $e->getMessage()]];
+    }
     $username = trim($body['username'] ?? '');
     $password = $body['password'] ?? '';
 
@@ -47,7 +51,7 @@ function handleLogin($request, $pdo) {
     }
 
     try {
-        $stmt = $pdo->prepare('SELECT id, password FROM users WHERE username = :username LIMIT 1');
+        $stmt = $pdo->prepare('SELECT id, password FROM users WHERE BINARY username = :username LIMIT 1');
         $stmt->execute(['username' => $username]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -55,14 +59,14 @@ function handleLogin($request, $pdo) {
             return [401, ['error' => 'Invalid credentials']];
         }
 
-        $token = bin2hex(random_bytes(32)); // 64-character token
+        $token = password_hash(bin2hex(random_bytes(32)), PASSWORD_BCRYPT);
 
         $stmt = $pdo->prepare('
             INSERT INTO sessions (user_id, token, ip_address, user_agent, created_at, expires_at)
             VALUES (:user_id, :token, :ip_address, :user_agent, NOW(), DATE_ADD(NOW(), INTERVAL 1 HOUR))
         ');
 
-        $ipAddress = inet_pton($request->server['remote_addr'] ?? '');
+        $ipAddress = filter_var($request->server['remote_addr'], FILTER_VALIDATE_IP);
         $userAgent = substr($request->header['user-agent'] ?? '', 0, 255);
 
         $stmt->execute([
@@ -93,7 +97,11 @@ function handleGetZones() {
  * Accepts optional SOA and NS parameters in the request body.
  */
 function handleAddZone($request, $pdo) {
-    $body = json_decode($request->rawContent(), true);
+    try {
+        $body = json_decode($request->rawContent(), true, 512, JSON_THROW_ON_ERROR);
+    } catch (JsonException $e) {
+        return [400, ['error' => 'Invalid JSON: ' . $e->getMessage()]];
+    }
     $zoneName = trim($body['zone'] ?? '');
 
     if (!$zoneName) {
@@ -255,7 +263,11 @@ function handleAddRecord($zoneName, $request, $pdo) {
         return [404, ['error' => $e->getMessage()]];
     }
 
-    $body = json_decode($request->rawContent(), true);
+    try {
+        $body = json_decode($request->rawContent(), true, 512, JSON_THROW_ON_ERROR);
+    } catch (JsonException $e) {
+        return [400, ['error' => 'Invalid JSON: ' . $e->getMessage()]];
+    }
     $name = $body['name'] ?? '';
     $type = strtoupper($body['type'] ?? '');
     $ttl = $body['ttl'] ?? 3600;
@@ -388,7 +400,11 @@ function handleUpdateRecord($zoneName, $request, $pdo) {
         return [404, ['error' => $e->getMessage()]];
     }
 
-    $body = json_decode($request->rawContent(), true);
+    try {
+        $body = json_decode($request->rawContent(), true, 512, JSON_THROW_ON_ERROR);
+    } catch (JsonException $e) {
+        return [400, ['error' => 'Invalid JSON: ' . $e->getMessage()]];
+    }
 
     $currentName = trim($body['current_name'] ?? '');
     $currentType = strtoupper(trim($body['current_type'] ?? ''));
@@ -489,7 +505,11 @@ function handleDeleteRecord($zoneName, $request, $pdo) {
         return [404, ['error' => $e->getMessage()]];
     }
 
-    $body = json_decode($request->rawContent(), true);
+    try {
+        $body = json_decode($request->rawContent(), true, 512, JSON_THROW_ON_ERROR);
+    } catch (JsonException $e) {
+        return [400, ['error' => 'Invalid JSON: ' . $e->getMessage()]];
+    }
 
     $recordName = trim($body['name'] ?? '');
     $recordType = strtoupper(trim($body['type'] ?? ''));
