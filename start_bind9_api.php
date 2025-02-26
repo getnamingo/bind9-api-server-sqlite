@@ -96,6 +96,21 @@ function handleGetZones() {
     return [200, ['zones' => $zones]];
 }
 
+function handleGetSlaveZones() {
+    $configFile = $_ENV['BIND9_CONF_FILE'];
+    
+    $configContent = file_get_contents($configFile);
+    if ($configContent === false) {
+        return [500, ['error' => 'Unable to read BIND9 configuration']];
+    }
+
+    preg_match_all('/zone\s+"([^"]+)"\s*\{\s*type\s+slave;/i', $configContent, $matches);
+    
+    $zones = $matches[1] ?? [];
+
+    return [200, ['zones' => $zones]];
+}
+
 /**
  * Handle adding a new zone.
  * Accepts optional SOA and NS parameters in the request body.
@@ -773,7 +788,7 @@ $server->on("request", function (Request $request, Response $response) use ($poo
             // Slave Zone Management
             if ($path === '/slave-zones') {
                 if ($method === 'GET') {
-                    list($status, $body) = handleGetZones();
+                    list($status, $body) = handleGetSlaveZones();
                     $response->status($status);
                     $response->end(json_encode($body));
                     return;
