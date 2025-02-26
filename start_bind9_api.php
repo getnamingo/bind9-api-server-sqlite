@@ -20,7 +20,7 @@ use Namingo\Rately\Rately;
 $dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
 $dotenv->load();
 
-$logFilePath = '/var/log/namingo/bind9_api.log';
+$logFilePath = '/var/log/plexdns/bind9_api.log';
 $log = setupLogger($logFilePath, 'BIND9_API');
 
 // Initialize the PDO connection pool
@@ -201,6 +201,51 @@ function handleAddZone($request, $pdo) {
 }
 
 /**
+ * Handle adding a slave zone.
+ * Requires the master server IP in the request body.
+ */
+function handleAddSlaveZone($request) {
+    try {
+        $body = json_decode($request->rawContent(), true, 512, JSON_THROW_ON_ERROR);
+
+        if (empty($body) || !is_array($body)) {
+            return [400, ['error' => 'Empty or invalid JSON payload']];
+        }
+    } catch (JsonException $e) {
+        return [400, ['error' => 'Invalid JSON: ' . $e->getMessage()]];
+    }
+
+    $zoneName = trim($body['zone'] ?? '');
+    $masterIp = trim($body['master_ip'] ?? '');
+
+    if (!$zoneName) {
+        return [400, ['error' => 'Zone name is required']];
+    }
+
+    if (!isValidDomainName($zoneName)) {
+        return [400, ['error' => 'Invalid zone name format']];
+    }
+
+    if (!$masterIp || !filter_var($masterIp, FILTER_VALIDATE_IP)) {
+        return [400, ['error' => 'Valid master IP is required']];
+    }
+
+    try {
+        addSlaveZoneToConfig($zoneName, $masterIp);
+    } catch (Exception $e) {
+        return [500, ['error' => 'Failed to update named.conf.local: ' . $e->getMessage()]];
+    }
+
+    try {
+        reloadBIND9();
+    } catch (Exception $e) {
+        return [500, ['error' => 'Failed to reload BIND9: ' . $e->getMessage()]];
+    }
+
+    return [201, ['message' => 'Slave zone added successfully']];
+}
+
+/**
  * Handle deleting an existing zone.
  */
 function handleDeleteZone($zoneName) {
@@ -238,6 +283,35 @@ function handleDeleteZone($zoneName) {
     }
 
     return [200, ['message' => 'Zone deleted successfully']];
+}
+
+/**
+ * Handle deleting a slave zone.
+ */
+function handleDeleteSlaveZone($zoneName) {
+    $zoneName = trim($zoneName);
+
+    if (!$zoneName) {
+        return [400, ['error' => 'Zone name is required']];
+    }
+
+    if (!isValidDomainName($zoneName)) {
+        return [400, ['error' => 'Invalid zone name format']];
+    }
+
+    try {
+        removeSlaveZoneFromConfig($zoneName);
+    } catch (Exception $e) {
+        return [500, ['error' => 'Failed to update named.conf.local: ' . $e->getMessage()]];
+    }
+
+    try {
+        reloadBIND9();
+    } catch (Exception $e) {
+        return [500, ['error' => 'Failed to reload BIND9: ' . $e->getMessage()]];
+    }
+
+    return [200, ['message' => 'Slave zone deleted successfully']];
 }
 
 function handleGetRecords($zoneName) {
@@ -608,7 +682,7 @@ function handleDeleteRecord($zoneName, $request, $pdo) {
 $server = new Server("0.0.0.0", 7650);
 $server->set([
     'daemonize' => false,
-    'log_file' => '/var/log/namingo/bind9-api.log',
+    'log_file' => '/var/log/plexdns/bind9-api.log',
     'log_level' => SWOOLE_LOG_INFO,
     'worker_num' => swoole_cpu_num() * 2,
     'pid_file' => '/var/run/bind9-api.pid',
@@ -696,6 +770,21 @@ $server->on("request", function (Request $request, Response $response) use ($poo
                 }
             }
 
+            // Slave Zone Management
+            if ($path === '/slave-zones') {
+                if ($method === 'GET') {
+                    list($status, $body) = handleGetZones();
+                    $response->status($status);
+                    $response->end(json_encode($body));
+                    return;
+                } elseif ($method === 'POST') {
+                    list($status, $body) = handleAddSlaveZone($request);
+                    $response->status($status);
+                    $response->end(json_encode($body));
+                    return;
+                }
+            }
+
             // Delete Zone: DELETE /zones/{zone}
             if (preg_match('#^/zones/([^/]+)$#', $path, $matches) && $method === 'DELETE') {
                 $zoneName = $matches[1];
@@ -703,6 +792,15 @@ $server->on("request", function (Request $request, Response $response) use ($poo
                 $response->status($status);
                 $response->end(json_encode($body));
                 $pool->put($pdo);
+                return;
+            }
+
+            // Delete Slave Zone: DELETE /slave-zones/{zone}
+            if (preg_match('#^/slave-zones/([^/]+)$#', $path, $matches) && $method === 'DELETE') {
+                $zoneName = $matches[1];
+                list($status, $body) = handleDeleteSlaveZone($zoneName);
+                $response->status($status);
+                $response->end(json_encode($body));
                 return;
             }
 

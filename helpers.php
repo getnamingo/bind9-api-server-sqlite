@@ -122,12 +122,47 @@ function removeZoneFromConfig(string $zoneName): void {
 }
 
 /**
+ * Remove a slave zone block from named.conf.local.
+ */
+function removeSlaveZoneFromConfig(string $zoneName): void {
+    $configFile = $_ENV['BIND9_CONF_FILE'];
+    backupConfigFile($configFile);
+    $configContent = file_get_contents($configFile);
+    if ($configContent === false) {
+        throw new Exception("Unable to read $configFile");
+    }
+    $pattern = '/zone\s+"'.preg_quote($zoneName, '/').'"\s*\{[^}]*\};\n?/i';
+    if (!preg_match($pattern, $configContent)) {
+        throw new Exception("Slave zone block for '$zoneName' not found in $configFile");
+    }
+    $newConfigContent = preg_replace($pattern, '', $configContent, 1);
+    if ($newConfigContent === null) {
+        throw new Exception("Error occurred while removing the slave zone block");
+    }
+    if (file_put_contents($configFile, $newConfigContent, LOCK_EX) === false) {
+        throw new Exception("Unable to write to $configFile");
+    }
+}
+
+/**
  * Append a new zone block to named.conf.local.
  */
 function addZoneToConfig(string $zoneName, string $zoneFilePath): void {
     $configFile = $_ENV['BIND9_CONF_FILE'];
     backupConfigFile($configFile);
     $zoneBlock = "\nzone \"$zoneName\" {\n    type master;\n    file \"$zoneFilePath\";\n};\n";
+    if (file_put_contents($configFile, $zoneBlock, FILE_APPEND | LOCK_EX) === false) {
+        throw new Exception("Unable to write to $configFile");
+    }
+}
+
+/**
+ * Append a new slave zone block to named.conf.local.
+ */
+function addSlaveZoneToConfig(string $zoneName, string $masterIp): void {
+    $configFile = $_ENV['BIND9_CONF_FILE'];
+    backupConfigFile($configFile);
+    $zoneBlock = "\nzone \"$zoneName\" {\n    type slave;\n    masters { $masterIp; };\n    file \"/var/cache/bind/$zoneName.zone\";\n};\n";
     if (file_put_contents($configFile, $zoneBlock, FILE_APPEND | LOCK_EX) === false) {
         throw new Exception("Unable to write to $configFile");
     }
