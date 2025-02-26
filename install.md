@@ -1,6 +1,6 @@
 # Installation Guide (Ubuntu 22.04/Ubuntu 24.04/Debian 12)
 
-**NB! The API server must be installed on a server where is running BIND9 as master DNS.**
+**NB! The API server must be installed on a server where is running BIND9 as master or slave DNS.**
 
 ## 1. Install the required packages:
 
