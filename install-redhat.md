@@ -34,7 +34,7 @@ named ALL=NOPASSWD: /usr/sbin/rndc reload, /usr/sbin/rndc notify
 First, clone the project repository into the `/opt/bind9_api` directory:
 
 ```bash
-git clone https://github.com/getnamingo/bind9-api-server /opt/bind9_api
+git clone https://github.com/getnamingo/bind9-api-server-sqlite /opt/bind9_api
 cd /opt/bind9_api
 ```
 
