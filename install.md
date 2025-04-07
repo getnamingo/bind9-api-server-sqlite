@@ -8,7 +8,7 @@
 apt install -y curl software-properties-common ufw
 add-apt-repository ppa:ondrej/php
 apt update
-apt install -y bzip2 composer git net-tools php8.3 php8.3-bz2 php8.3-cli php8.3-common php8.3-curl php8.3-fpm php8.3-gd php8.3-gmp php8.3-imagick php8.3-intl php8.3-mbstring php8.3-opcache php8.3-readline php8.3-soap php8.3-swoole php8.3-xml unzip wget whois
+apt install -y bzip2 composer git net-tools php8.3 php8.3-bz2 php8.3-cli php8.3-common php8.3-curl php8.3-fpm php8.3-gd php8.3-gmp php8.3-imagick php8.3-intl php8.3-mbstring php8.3-opcache php8.3-readline php8.3-soap php8.3-swoole php8.3-xml unzip wget whois php8.3-sqlite3 sqlite3
 ```
 
 ### Configure PHP:
@@ -20,7 +20,7 @@ nano /etc/php/8.3/cli/php.ini
 nano /etc/php/8.3/fpm/php.ini
 ```
 
-Locate or add these lines in ```php.ini```, also replace ```example.com``` with your registrar domain name:
+Locate or add these lines in ```php.ini``` and set to:
 
 ```bash
 opcache.enable=1
@@ -31,7 +31,7 @@ opcache.jit=1255
 session.cookie_secure = 1
 session.cookie_httponly = 1
 session.cookie_samesite = "Strict"
-session.cookie_domain = example.com
+session.cookie_domain =
 ```
 
 In ```/etc/php/8.3/mods-available/opcache.ini``` make one additional change:
@@ -89,86 +89,7 @@ systemctl enable caddy
 systemctl restart caddy
 ```
 
-## 3. Install MariaDB:
-
-```bash
-curl -o /etc/apt/keyrings/mariadb-keyring.pgp 'https://mariadb.org/mariadb_release_signing_key.pgp'
-```
-
-### 3.1. Ubuntu 22.04
-
-Place the following in ```/etc/apt/sources.list.d/mariadb.sources```:
-
-```bash
-# MariaDB 10.11 repository list - created 2023-12-02 22:16 UTC
-# https://mariadb.org/download/
-X-Repolib-Name: MariaDB
-Types: deb
-# deb.mariadb.org is a dynamic mirror if your preferred mirror goes offline. See https://mariadb.org/mirrorbits/ for details.
-# URIs: https://deb.mariadb.org/10.11/ubuntu
-URIs: https://mirrors.chroot.ro/mariadb/repo/10.11/ubuntu
-Suites: jammy
-Components: main main/debug
-Signed-By: /etc/apt/keyrings/mariadb-keyring.pgp
-```
-
-### 3.2. Ubuntu 24.04
-
-Place the following in ```/etc/apt/sources.list.d/mariadb.list```:
-
-```bash
-# MariaDB 11.4 repository list - created 2024-07-23 18:24 UTC
-# https://mariadb.org/download/
-deb [signed-by=/etc/apt/keyrings/mariadb-keyring.pgp] https://fastmirror.pp.ua/mariadb/repo/11.4/ubuntu noble main
-```
-
-### 3.3. Debian 12
-
-Place the following in ```/etc/apt/sources.list.d/mariadb.sources```:
-
-```bash
-# MariaDB 10.11 repository list - created 2024-01-05 12:23 UTC
-# https://mariadb.org/download/
-X-Repolib-Name: MariaDB
-Types: deb
-# deb.mariadb.org is a dynamic mirror if your preferred mirror goes offline. See https://mariadb.org/mirrorbits/ for details.
-# URIs: https://deb.mariadb.org/10.11/debian
-URIs: https://mirrors.chroot.ro/mariadb/repo/10.11/debian
-Suites: bookworm
-Components: main
-Signed-By: /etc/apt/keyrings/mariadb-keyring.pgp
-```
-
-## 4. Configure MariaDB:
-
-1. Execute the following commands:
-
-```bash
-apt update
-apt install -y mariadb-client mariadb-server php8.3-mysql
-mysql_secure_installation
-```
-
-2. Access MariaDB:
-
-```bash
-mysql -u root -p
-```
-
-3. Execute the following queries:
-
-```bash
-CREATE DATABASE bind9_api;
-CREATE USER 'bind9_api_user'@'localhost' IDENTIFIED BY 'RANDOM_STRONG_PASSWORD';
-GRANT ALL PRIVILEGES ON bind9_api.* TO 'bind9_api_user'@'localhost';
-FLUSH PRIVILEGES;
-```
-
-Replace `bind9_api_user` with your desired username and `RANDOM_STRONG_PASSWORD` with a secure password of your choice.
-
-[Tune your MariaDB](https://github.com/major/MySQLTuner-perl)
-
-## 5. Set File Permissions:
+## 3. Set File Permissions:
 
 ```bash
 chown www-data:www-data /etc/bind/named.conf.local
@@ -177,7 +98,7 @@ chown -R www-data:www-data /etc/bind/zones
 chmod -R 640 /etc/bind/zones
 ```
 
-## 6. Edit the sudoers file:
+## 4. Edit the sudoers file:
 
 ```bash
 sudo visudo
@@ -189,7 +110,7 @@ Add the following line (replace www-data with the appropriate user):
 www-data ALL=NOPASSWD: /usr/sbin/rndc reload
 ```
 
-## 7. Download BIND9 API:
+## 5. Download BIND9 API:
 
 First, clone the project repository into the `/opt/bind9_api` directory:
 
@@ -204,13 +125,15 @@ mkdir -p /var/log/namingo
 chown -R www-data:www-data /var/log/namingo
 ```
 
-## 8. Import Database:
+## 6. Import Database:
 
 ```bash
-mysql -u bind9_api_user -pRANDOM_STRONG_PASSWORD < /opt/bind9_api/database/bind9_api.sql
+sqlite3 /opt/bind9_api/bind9_api.sqlite < /opt/bind9_api/database/bind9_api.sql
+chown www-data:www-data /opt/bind9_api/bind9_api.sqlite
+chmod 660 /opt/bind9_api/bind9_api.sqlite
 ```
 
-## 9. Setup API Service:
+## 7. Setup API Service:
 
 ```bash
 cd /opt/bind9_api
@@ -234,11 +157,11 @@ After that you can manage BIND9 API via systemctl as any other service. Finally,
 systemctl restart caddy
 ```
 
-## (Optional) 10. Install BIND9:
+## (Optional) 8. Install BIND9:
 
 If needed, here is how to install BIND9.
 
-### 10.1. Setting your hostname
+### 8.1. Setting your hostname
 
 ```bash
 hostnamectl set-hostname your.hostname.com
@@ -254,7 +177,7 @@ nano /etc/hosts
 192.0.2.10   your.hostname.com bind
 ```
 
-### 10.2. Install BIND9
+### 8.2. Install BIND9
 
 Install BIND9 and related utilities:
 

@@ -1,62 +1,55 @@
--- Database: bind9_api
-
--- Create the database with UTF8MB4 character set for full Unicode support
-CREATE DATABASE IF NOT EXISTS bind9_api CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-USE bind9_api;
-
 -- Users table
 CREATE TABLE users (
-    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(50) NOT NULL UNIQUE,
-    password VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB;
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL UNIQUE,
+    password TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 
 -- Whitelist table
 CREATE TABLE whitelist (
-    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    ip_address VARBINARY(16) NOT NULL UNIQUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB;
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ip_address TEXT NOT NULL UNIQUE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 
 -- Zones table
 CREATE TABLE zones (
-    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    domain_name VARCHAR(255) NOT NULL UNIQUE,
-    current_soa BIGINT UNSIGNED NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB;
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    domain_name TEXT NOT NULL UNIQUE,
+    current_soa INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 
 -- Audit Log table
 CREATE TABLE audit_log (
-    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    user_id INT UNSIGNED NOT NULL,
-    action VARCHAR(50) NOT NULL,
-    zone_id INT UNSIGNED NULL,
-    record_name VARCHAR(255) NULL,
-    record_type VARCHAR(10) NULL,
-    record_data TEXT NULL,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    ip_address VARBINARY(16) NOT NULL,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    action TEXT NOT NULL,
+    zone_id INTEGER,
+    record_name TEXT,
+    record_type TEXT,
+    record_data TEXT,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    ip_address TEXT NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(id),
     FOREIGN KEY (zone_id) REFERENCES zones(id)
-) ENGINE=InnoDB;
+);
 
 -- Sessions table
 CREATE TABLE sessions (
-    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    user_id INT UNSIGNED NOT NULL,
-    token CHAR(64) NOT NULL UNIQUE,
-    ip_address VARBINARY(16) NOT NULL,
-    user_agent VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    expires_at TIMESTAMP NOT NULL,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    token TEXT NOT NULL UNIQUE,
+    ip_address TEXT NOT NULL,
+    user_agent TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    expires_at DATETIME NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-) ENGINE=InnoDB;
+);
 
--- Indexes for performance optimization
+-- Indexes
 CREATE INDEX idx_whitelist_ip ON whitelist(ip_address);
 CREATE INDEX idx_zones_domain ON zones(domain_name);
 CREATE INDEX idx_audit_log_user ON audit_log(user_id);

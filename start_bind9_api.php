@@ -26,13 +26,8 @@ $log = setupLogger($logFilePath, 'BIND9_API');
 // Initialize the PDO connection pool
 $pool = new Swoole\Database\PDOPool(
     (new Swoole\Database\PDOConfig())
-        ->withDriver($_ENV['DB_TYPE'])
-        ->withHost($_ENV['DB_HOST'])
-        ->withPort($_ENV['DB_PORT'])
-        ->withDbName($_ENV['DB_DATABASE'])
-        ->withUsername($_ENV['DB_USERNAME'])
-        ->withPassword($_ENV['DB_PASSWORD'])
-        ->withCharset('utf8mb4')
+        ->withDriver('sqlite')
+        ->withDatabase($_ENV['DB_DATABASE'])
 );
 
 // Handler Functions
@@ -67,7 +62,7 @@ function handleLogin($request, $pdo) {
 
         $stmt = $pdo->prepare('
             INSERT INTO sessions (user_id, token, ip_address, user_agent, created_at, expires_at)
-            VALUES (:user_id, :token, :ip_address, :user_agent, NOW(), DATE_ADD(NOW(), INTERVAL 1 HOUR))
+            VALUES (:user_id, :token, :ip_address, :user_agent, DATETIME(\'now\'), DATETIME(\'now\', \'+1 hour\'))
         ');
 
         $ipAddress = filter_var($request->server['remote_addr'], FILTER_VALIDATE_IP);
@@ -720,7 +715,7 @@ $log->info('BIND9 api server started at http://127.0.0.1:7650');
 Swoole\Timer::tick(60000, function() use ($pool, $log) {
     $pdo = $pool->get();
     try {
-        $stmt = $pdo->prepare("DELETE FROM sessions WHERE expires_at < NOW()");
+        $stmt = $pdo->prepare("DELETE FROM sessions WHERE expires_at < DATETIME('now')");
         $stmt->execute();
         $removed = $stmt->rowCount();
         $log->info("Expired sessions cleanup executed, removed {$removed} sessions.");

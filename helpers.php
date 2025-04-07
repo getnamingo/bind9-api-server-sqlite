@@ -255,7 +255,7 @@ function getCurrentSerialNumber($pdo, $domainName) {
 
 function insertInitialSerialNumber($pdo, $domainName) {
     $serialNumber = generateInitialSerialNumber();
-    $stmt = $pdo->prepare('INSERT INTO zones (domain_name, current_soa, created_at, updated_at) VALUES (:domain_name, :serial_number, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)');
+    $stmt = $pdo->prepare('INSERT INTO zones (domain_name, current_soa, created_at, updated_at) VALUES (:domain_name, :serial_number, DATETIME(\'now\'), DATETIME(\'now\'))');
     $stmt->execute([':domain_name' => $domainName, ':serial_number' => $serialNumber]);
     return $serialNumber;
 }
