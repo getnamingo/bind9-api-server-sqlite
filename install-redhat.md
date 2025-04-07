@@ -42,7 +42,7 @@ Next, create the directory for logs. This directory will be used to store log fi
 
 ```bash
 mkdir -p /var/log/plexdns
-chown bind:bind /var/log/plexdns
+chown named:named /var/log/plexdns
 chmod 750 /var/log/plexdns
 ```
 
@@ -50,7 +50,7 @@ chmod 750 /var/log/plexdns
 
 ```bash
 sqlite3 /opt/bind9_api/bind9_api.sqlite < /opt/bind9_api/database/bind9_api.sql
-chown bind:bind /opt/bind9_api/bind9_api.sqlite
+chown named:named /opt/bind9_api/bind9_api.sqlite
 chmod 660 /opt/bind9_api/bind9_api.sqlite
 ```
 
@@ -68,7 +68,7 @@ Edit the `.env` with the appropriate database details and preferences as require
 ```bash
 DB_TYPE=sqlite
 DB_DATABASE=/opt/bind9_api/bind9_api.sqlite
-...
+...other content here...
 BIND9_CONF_FILE=/opt/bind9_api/bind_zones.conf
 BIND9_ZONE_DIR=/opt/bind9_api/zones
 ```
