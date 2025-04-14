@@ -299,3 +299,16 @@ function isValidDomainName($domain) {
     return preg_match('/^(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/', $domain) || // Regular domain
            preg_match('/^xn--[a-zA-Z0-9-]+$/', $domain); // IDN (Punycode)
 }
+
+function getPdo(string $path): PDO {
+    static $pdo = null;
+    static $cachedPath = null;
+
+    if ($pdo === null || $cachedPath !== $path) {
+        $pdo = new PDO('sqlite:' . $path);
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $cachedPath = $path;
+    }
+
+    return $pdo;
+}

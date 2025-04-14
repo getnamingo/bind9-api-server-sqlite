@@ -23,15 +23,9 @@ $dotenv->load();
 $logFilePath = '/var/log/plexdns/bind9_api.log';
 $log = setupLogger($logFilePath, 'BIND9_API');
 
-// Initialize the PDO connection pool
-$pool = new Swoole\Database\PDOPool(
-    (new Swoole\Database\PDOConfig())
-        ->withDriver('sqlite')
-        ->withDatabase($_ENV['DB_DATABASE'])
-);
+$pdo = getPdo($_ENV['DB_DATABASE']);
 
 // Handler Functions
-
 function handleLogin($request, $pdo) {
     try {
         $body = json_decode($request->rawContent(), true, 512, JSON_THROW_ON_ERROR);
@@ -712,8 +706,7 @@ $rateLimiter = new Rately();
 $log->info('BIND9 api server started at http://127.0.0.1:7650');
 
 // Set up a periodic cleanup of expired sessions every 60 seconds.
-Swoole\Timer::tick(60000, function() use ($pool, $log) {
-    $pdo = $pool->get();
+Swoole\Timer::tick(60000, function() use ($pdo, $log) {
     try {
         $stmt = $pdo->prepare("DELETE FROM sessions WHERE expires_at < DATETIME('now')");
         $stmt->execute();
@@ -722,14 +715,11 @@ Swoole\Timer::tick(60000, function() use ($pool, $log) {
     } catch (Exception $e) {
         $log->error("Failed to clean up expired sessions: " . $e->getMessage());
     }
-    $pool->put($pdo);
 });
 
-$server->on("request", function (Request $request, Response $response) use ($pool, $log, $rateLimiter) {
-    Swoole\Coroutine\go(function () use ($request, $response, $pool, $log, $rateLimiter) {
+$server->on("request", function (Request $request, Response $response) use ($pdo, $log, $rateLimiter) {
+    Swoole\Coroutine\go(function () use ($request, $response, $pdo, $log, $rateLimiter) {
         $response->header("Content-Type", "application/json");
-        
-        $pdo = $pool->get();
 
         $remoteAddr = $request->server['remote_addr'];
         if (!isIpWhitelisted($remoteAddr, $pdo)) {
@@ -738,7 +728,6 @@ $server->on("request", function (Request $request, Response $response) use ($poo
                 $response->header('Content-Type', 'application/json');
                 $response->status(429);
                 $response->end(json_encode(['error' => 'Rate limit exceeded. Please try again later.']));
-                $pool->put($pdo);
                 return;
             }
         }
@@ -751,7 +740,6 @@ $server->on("request", function (Request $request, Response $response) use ($poo
                 list($status, $body) = handleLogin($request, $pdo);
                 $response->status($status);
                 $response->end(json_encode($body));
-                $pool->put($pdo);
                 return;
             }
 
@@ -759,7 +747,6 @@ $server->on("request", function (Request $request, Response $response) use ($poo
             if (!$user) {
                 $response->status(401);
                 $response->end(json_encode(['error' => 'Unauthorized']));
-                $pool->put($pdo);
                 return;
             }
 
@@ -769,13 +756,11 @@ $server->on("request", function (Request $request, Response $response) use ($poo
                     list($status, $body) = handleGetZones();
                     $response->status($status);
                     $response->end(json_encode($body));
-                    $pool->put($pdo);
                     return;
                 } elseif ($method === 'POST') {
                     list($status, $body) = handleAddZone($request, $pdo);
                     $response->status($status);
                     $response->end(json_encode($body));
-                    $pool->put($pdo);
                     return;
                 }
             }
@@ -801,7 +786,6 @@ $server->on("request", function (Request $request, Response $response) use ($poo
                 list($status, $body) = handleDeleteZone($zoneName);
                 $response->status($status);
                 $response->end(json_encode($body));
-                $pool->put($pdo);
                 return;
             }
 
@@ -821,13 +805,11 @@ $server->on("request", function (Request $request, Response $response) use ($poo
                     list($status, $body) = handleGetRecords($zoneName);
                     $response->status($status);
                     $response->end(json_encode($body));
-                    $pool->put($pdo);
                     return;
                 } elseif ($method === 'POST') {
                     list($status, $body) = handleAddRecord($zoneName, $request, $pdo);
                     $response->status($status);
                     $response->end(json_encode($body));
-                    $pool->put($pdo);
                     return;
                 }
             }
@@ -839,13 +821,11 @@ $server->on("request", function (Request $request, Response $response) use ($poo
                     list($status, $body) = handleUpdateRecord($zoneName, $request, $pdo);
                     $response->status($status);
                     $response->end(json_encode($body));
-                    $pool->put($pdo);
                     return;
                 } elseif ($method === 'DELETE') {
                     list($status, $body) = handleDeleteRecord($zoneName, $request, $pdo);
                     $response->status($status);
                     $response->end(json_encode($body));
-                    $pool->put($pdo);
                     return;
                 }
             }
@@ -863,8 +843,6 @@ $server->on("request", function (Request $request, Response $response) use ($poo
             $response->status(500);
             $response->header('Content-Type', 'application/json');
             $response->end(json_encode(['Error:' => $e->getMessage()]));
-        } finally {
-            $pool->put($pdo);
         }
     });
 });
