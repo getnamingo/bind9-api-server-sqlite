@@ -723,7 +723,8 @@ $server->on("request", function (Request $request, Response $response) use ($pdo
 
         $remoteAddr = $request->server['remote_addr'];
         if (!isIpWhitelisted($remoteAddr, $pdo)) {
-            if (($_ENV['RATELY'] == true) && ($rateLimiter->isRateLimited('bind9_api', $remoteAddr, $_ENV['RATE_LIMIT'], $_ENV['RATE_PERIOD']))) {
+            if (filter_var($_ENV['RATELY'] ?? false, FILTER_VALIDATE_BOOLEAN) && 
+    $rateLimiter->isRateLimited('bind9_api', $remoteAddr, $_ENV['RATE_LIMIT'], $_ENV['RATE_PERIOD'])) {
                 $log->error('Rate limit exceeded for ' . $remoteAddr);
                 $response->header('Content-Type', 'application/json');
                 $response->status(429);
