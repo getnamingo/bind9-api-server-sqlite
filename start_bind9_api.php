@@ -44,7 +44,7 @@ function handleLogin($request, $pdo) {
     }
 
     try {
-        $stmt = $pdo->prepare('SELECT id, password FROM users WHERE BINARY username = :username LIMIT 1');
+        $stmt = $pdo->prepare('SELECT id, password FROM users WHERE username = :username COLLATE BINARY LIMIT 1');
         $stmt->execute(['username' => $username]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
