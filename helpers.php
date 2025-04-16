@@ -283,7 +283,18 @@ function updateSerialNumber($pdo, $domainName) {
  * Update the SOA record in the zone by updating its serial number.
  */
 function updateZoneSoa($zone, $zoneName, $pdo) {
+    //debug 1
+    foreach ($zone->getResourceRecords() as $record) {
+        if (strtoupper($record->getType()) === 'SOA') {
+            file_put_contents('/tmp/1.txt', "Old serial: " . $record->getRdata()->getSerial());
+            break;
+        }
+    }
+
     $newSerial = updateSerialNumber($pdo, $zoneName);
+    //debug 2
+    file_put_contents('/tmp/2.txt', "New serial: $newSerial");
+
     foreach ($zone->getResourceRecords() as $record) {
         if (strtoupper($record->getType()) === 'SOA') {
             $soaRdata = $record->getRdata();
@@ -292,6 +303,14 @@ function updateZoneSoa($zone, $zoneName, $pdo) {
             break;
         }
     }
+    //debug 3
+    foreach ($zone->getResourceRecords() as $record) {
+        if (strtoupper($record->getType()) === 'SOA') {
+            file_put_contents('/tmp/3.txt', "Final zone object serial: " . $record->getRdata()->getSerial());
+            break;
+        }
+    }
+
     saveZone($zone);
 }
 
