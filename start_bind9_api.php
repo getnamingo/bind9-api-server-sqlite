@@ -684,6 +684,14 @@ function handleDeleteRecord($zoneName, $request, $pdo) {
                 }
             } elseif ($recordType === 'MX') {
                 $mxRecord = $record->getRdata();
+file_put_contents('/tmp/delete_mx_check.txt', var_export([
+    'expected' => [
+        'exchange' => $mxRecord->getExchange(),
+        'preference' => $mxRecord->getPreference(),
+    ],
+    'incoming' => $recordRdata
+], true));
+
                 if ($mxRecord->getExchange() === $recordRdata['exchange'] &&
                     $mxRecord->getPreference() == $recordRdata['preference']) {
                     $recordToDelete = $record;
