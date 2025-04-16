@@ -669,6 +669,19 @@ function handleDeleteRecord($zoneName, $request, $pdo) {
 
     $recordToDelete = null;
     foreach ($zone->getResourceRecords() as $record) {
+		
+file_put_contents('/tmp/mx_debug_all.txt', var_export([
+    'record_name' => $record->getName(),
+    'record_type' => $record->getType(),
+    'record_rdata' => $record->getRdata()->toText(),
+    'looking_for' => [
+        'name' => $recordName,
+        'type' => $recordType,
+        'rdata' => $recordRdata,
+    ]
+], true) . "\n---\n", FILE_APPEND);
+
+
         if (
             strtolower($record->getName()) === strtolower($recordName) &&
             strtoupper($record->getType()) === strtoupper($recordType)
