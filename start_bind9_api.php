@@ -543,9 +543,22 @@ function handleUpdateRecord($zoneName, $request, $pdo) {
             $currentRdata = '10 ' . $currentRdata;
         }
     }
+	
+file_put_contents('/tmp/1.txt', "Looking for:\n" . var_export([
+    'name' => $currentName,
+    'type' => $currentType,
+    'rdata' => $currentRdata
+], true));
+
 
     $recordToUpdate = null;
     foreach ($zone->getResourceRecords() as $record) {
+file_put_contents('/tmp/2.txt', "Checking:\n" . var_export([
+    'name' => $record->getName(),
+    'type' => $record->getType(),
+    'rdata' => $record->getRdata()->toText()
+], true));
+
         if (
             strtolower($record->getName()) === strtolower($currentName) &&
             strtoupper($record->getType()) === strtoupper($currentType) &&
