@@ -528,11 +528,6 @@ function handleUpdateRecord($zoneName, $request, $pdo) {
     }
 
     if ($currentType === 'MX') {
-/*         // Normalize name
-        if ($currentName === $zoneName || $currentName === $zoneName . '.') {
-            $currentName = '@';
-        } */
-
         // Normalize rdata
         if (is_array($currentRdata)) {
             // convert array to string: "10 mail.domain.com."
@@ -543,22 +538,9 @@ function handleUpdateRecord($zoneName, $request, $pdo) {
             $currentRdata = '10 ' . $currentRdata;
         }
     }
-	
-file_put_contents('/tmp/1.txt', "Looking for:\n" . var_export([
-    'name' => $currentName,
-    'type' => $currentType,
-    'rdata' => $currentRdata
-], true));
-
 
     $recordToUpdate = null;
     foreach ($zone->getResourceRecords() as $record) {
-file_put_contents('/tmp/2.txt', "Checking:\n" . var_export([
-    'name' => $record->getName(),
-    'type' => $record->getType(),
-    'rdata' => $record->getRdata()->toText()
-], true));
-
         if (
             strtolower($record->getName()) === strtolower($currentName) &&
             strtoupper($record->getType()) === strtoupper($currentType) &&
@@ -672,6 +654,15 @@ function handleDeleteRecord($zoneName, $request, $pdo) {
 
     if (!$recordName || !$recordType || !$recordRdata) {
         return [400, ['error' => 'Record name, type, and rdata are required for identification']];
+    }
+
+    if ($recordType === 'MX') {
+        if (is_string($recordRdata)) {
+            $recordRdata = [
+                'preference' => 10,
+                'exchange' => $recordRdata,
+            ];
+        }
     }
 
     $recordToDelete = null;
