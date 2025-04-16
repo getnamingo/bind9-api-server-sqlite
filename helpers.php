@@ -283,18 +283,7 @@ function updateSerialNumber($pdo, $domainName) {
  * Update the SOA record in the zone by updating its serial number.
  */
 function updateZoneSoa($zone, $zoneName, $pdo) {
-    //debug 1
-    foreach ($zone->getResourceRecords() as $record) {
-        if (strtoupper($record->getType()) === 'SOA') {
-            file_put_contents('/tmp/1.txt', "Old serial: " . $record->getRdata()->getSerial());
-            break;
-        }
-    }
-
-    $newSerial = updateSerialNumber($pdo, $zoneName);
-    //debug 2
-    file_put_contents('/tmp/2.txt', "New serial: $newSerial");
-
+    $newSerial = updateSerialNumberFromZone($zone);
     foreach ($zone->getResourceRecords() as $record) {
         if (strtoupper($record->getType()) === 'SOA') {
             $soaRdata = $record->getRdata();
@@ -303,14 +292,6 @@ function updateZoneSoa($zone, $zoneName, $pdo) {
             break;
         }
     }
-    //debug 3
-    foreach ($zone->getResourceRecords() as $record) {
-        if (strtoupper($record->getType()) === 'SOA') {
-            file_put_contents('/tmp/3.txt', "Final zone object serial: " . $record->getRdata()->getSerial());
-            break;
-        }
-    }
-
     saveZone($zone);
 }
 
@@ -330,4 +311,29 @@ function getPdo(string $path): PDO {
     }
 
     return $pdo;
+}
+
+function updateSerialNumberFromZone($zone) {
+    $currentDate = date('Ymd');
+    $newSerial = null;
+
+    foreach ($zone->getResourceRecords() as $record) {
+        if (strtoupper($record->getType()) === 'SOA') {
+            $currentSerial = $record->getRdata()->getSerial();
+            $serialDate = substr($currentSerial, 0, 8);
+            $changeNumber = (int)substr($currentSerial, 8, 2);
+
+            if ($serialDate === $currentDate) {
+                $changeNumber++;
+                $changeNumber = str_pad($changeNumber, 2, '0', STR_PAD_LEFT);
+            } else {
+                $changeNumber = '01';
+            }
+
+            $newSerial = $currentDate . $changeNumber;
+            break;
+        }
+    }
+
+    return $newSerial;
 }
