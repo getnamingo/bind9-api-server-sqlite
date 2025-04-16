@@ -586,8 +586,13 @@ function handleUpdateRecord($zoneName, $request, $pdo) {
             }
             $methodName = $factoryMethods[$normalizedType];
             if ($currentType === 'MX') {
-                $preference = $newRdata['preference'];
-                $exchange = $newRdata['exchange'];
+                if (is_array($newRdata)) {
+                    $preference = $newRdata['preference'] ?? 10;
+                    $exchange = $newRdata['exchange'] ?? '';
+                } else {
+                    $preference = 10;
+                    $exchange = $newRdata;
+                }
                 $rdataInstance = \Badcow\DNS\Rdata\Factory::MX($preference, $exchange);
             } else if ($currentType === 'DS') {
                 $keytag = $newRdata['keytag'];
