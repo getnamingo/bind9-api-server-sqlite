@@ -528,10 +528,10 @@ function handleUpdateRecord($zoneName, $request, $pdo) {
     }
 
     if ($currentType === 'MX') {
-        // Normalize name
+/*         // Normalize name
         if ($currentName === $zoneName || $currentName === $zoneName . '.') {
             $currentName = '@';
-        }
+        } */
 
         // Normalize rdata
         if (is_array($currentRdata)) {
