@@ -660,15 +660,15 @@ function handleDeleteRecord($zoneName, $request, $pdo) {
     }
 
     if ($recordType === 'MX') {
-        if (is_array($recordRdata)) {
-            $preference = $recordRdata['preference'] ?? 10;
-            $exchange = rtrim($recordRdata['exchange'] ?? '', '.') . '.';
-        } else {
-            $preference = 10;
-            $exchange = rtrim($recordRdata, '.') . '.';
+        if (is_string($recordRdata)) {
+            $recordRdata = [
+                'preference' => 10,
+                'exchange' => rtrim($recordRdata, '.') . '.',
+            ];
+        } elseif (is_array($recordRdata)) {
+            $recordRdata['preference'] = $recordRdata['preference'] ?? 10;
+            $recordRdata['exchange'] = rtrim($recordRdata['exchange'] ?? '', '.') . '.';
         }
-
-        $recordRdata = $preference . ' ' . $exchange;
     }
 
     $recordToDelete = null;
