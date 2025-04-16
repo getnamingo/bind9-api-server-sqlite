@@ -456,6 +456,7 @@ function handleAddRecord($zoneName, $request, $pdo) {
         }
         $methodName = $factoryMethods[$normalizedType];
         if ($type === 'MX') {
+            file_put_contents('/tmp/1.txt', "RDATA: " . var_export($rdata, true));
             $preference = $rdata['preference'];
             $exchange = $rdata['exchange'];
             $rdataInstance = \Badcow\DNS\Rdata\Factory::MX($preference, $exchange);
