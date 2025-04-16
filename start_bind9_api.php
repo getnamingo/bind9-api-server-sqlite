@@ -526,6 +526,18 @@ function handleUpdateRecord($zoneName, $request, $pdo) {
         return [400, ['error' => 'Current record name, type, and rdata are required for identification']];
     }
 
+    if ($currentType === 'MX') {
+        // Normalize name to '@' if it's the root of the zone
+        if ($currentName === $zoneName || $currentName === $zoneName . '.') {
+            $currentName = '@';
+        }
+
+        // Normalize RDATA to include preference for comparison
+        if (is_string($currentRdata)) {
+            $currentRdata = '10 ' . $currentRdata;
+        }
+    }
+
     $recordToUpdate = null;
     foreach ($zone->getResourceRecords() as $record) {
         if (
