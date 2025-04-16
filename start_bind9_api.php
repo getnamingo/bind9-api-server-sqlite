@@ -840,7 +840,13 @@ $server->on("request", function (Request $request, Response $response) use ($pdo
             $response->header('Content-Type', 'application/json');
             $response->end(json_encode(['Database error:' => $e->getMessage()]));
         } catch (Throwable $e) {
-            $log->error('Error: ' . $e->getMessage());
+            $log->error(sprintf(
+                "Exception: %s in %s on line %d\nTrace:\n%s",
+                $e->getMessage(),
+                $e->getFile(),
+                $e->getLine(),
+                $e->getTraceAsString()
+            ));
             $response->status(500);
             $response->header('Content-Type', 'application/json');
             $response->end(json_encode(['Error:' => $e->getMessage()]));
