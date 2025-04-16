@@ -660,8 +660,10 @@ function handleDeleteRecord($zoneName, $request, $pdo) {
         if (is_string($recordRdata)) {
             $recordRdata = [
                 'preference' => 10,
-                'exchange' => $recordRdata,
+                'exchange' => rtrim($recordRdata, '.') . '.',
             ];
+        } elseif (is_array($recordRdata)) {
+            $recordRdata['exchange'] = rtrim($recordRdata['exchange'], '.') . '.';
         }
     }
 
