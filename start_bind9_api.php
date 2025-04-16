@@ -645,6 +645,9 @@ function handleDeleteRecord($zoneName, $request, $pdo) {
     }
 
     $recordName = trim($body['name'] ?? '');
+    if ($recordName === '@') {
+        $recordName = rtrim($zoneName, '.') . '.';
+    }
     $recordType = strtoupper(trim($body['type'] ?? ''));
     if ($recordType === 'DS' || $recordType === 'MX') {
         $recordRdata = $body['rdata'] ?? '';
@@ -657,31 +660,19 @@ function handleDeleteRecord($zoneName, $request, $pdo) {
     }
 
     if ($recordType === 'MX') {
-        if (is_string($recordRdata)) {
-            $recordRdata = [
-                'preference' => 10,
-                'exchange' => rtrim($recordRdata, '.') . '.',
-            ];
-        } elseif (is_array($recordRdata)) {
-            $recordRdata['exchange'] = rtrim($recordRdata['exchange'], '.') . '.';
+        if (is_array($recordRdata)) {
+            $preference = $recordRdata['preference'] ?? 10;
+            $exchange = rtrim($recordRdata['exchange'] ?? '', '.') . '.';
+        } else {
+            $preference = 10;
+            $exchange = rtrim($recordRdata, '.') . '.';
         }
+
+        $recordRdata = $preference . ' ' . $exchange;
     }
 
     $recordToDelete = null;
     foreach ($zone->getResourceRecords() as $record) {
-		
-file_put_contents('/tmp/mx_debug_all.txt', var_export([
-    'record_name' => $record->getName(),
-    'record_type' => $record->getType(),
-    'record_rdata' => $record->getRdata()->toText(),
-    'looking_for' => [
-        'name' => $recordName,
-        'type' => $recordType,
-        'rdata' => $recordRdata,
-    ]
-], true) . "\n---\n", FILE_APPEND);
-
-
         if (
             strtolower($record->getName()) === strtolower($recordName) &&
             strtoupper($record->getType()) === strtoupper($recordType)
@@ -697,14 +688,6 @@ file_put_contents('/tmp/mx_debug_all.txt', var_export([
                 }
             } elseif ($recordType === 'MX') {
                 $mxRecord = $record->getRdata();
-file_put_contents('/tmp/delete_mx_check.txt', var_export([
-    'expected' => [
-        'exchange' => $mxRecord->getExchange(),
-        'preference' => $mxRecord->getPreference(),
-    ],
-    'incoming' => $recordRdata
-], true));
-
                 if ($mxRecord->getExchange() === $recordRdata['exchange'] &&
                     $mxRecord->getPreference() == $recordRdata['preference']) {
                     $recordToDelete = $record;
