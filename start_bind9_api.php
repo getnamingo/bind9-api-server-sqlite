@@ -515,7 +515,8 @@ function handleUpdateRecord($zoneName, $request, $pdo) {
 
     $currentName = trim($body['current_name'] ?? '');
     $currentType = strtoupper(trim($body['current_type'] ?? ''));
-    $currentRdata = trim($body['current_rdata'] ?? '');
+    $currentRdataRaw = $body['current_rdata'] ?? '';
+    $currentRdata = is_string($currentRdataRaw) ? trim($currentRdataRaw) : $currentRdataRaw;
 
     $newName = trim($body['new_name'] ?? $currentName);
     $newTtl = isset($body['new_ttl']) ? intval($body['new_ttl']) : 3600;
