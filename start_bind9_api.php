@@ -456,9 +456,13 @@ function handleAddRecord($zoneName, $request, $pdo) {
         }
         $methodName = $factoryMethods[$normalizedType];
         if ($type === 'MX') {
-            file_put_contents('/tmp/1.txt', "RDATA: " . var_export($rdata, true));
-            $preference = $rdata['preference'];
-            $exchange = $rdata['exchange'];
+            if (is_array($rdata)) {
+                $preference = $rdata['preference'] ?? 10;
+                $exchange = $rdata['exchange'] ?? '';
+            } else {
+                $preference = 10;
+                $exchange = $rdata;
+            }
             $rdataInstance = \Badcow\DNS\Rdata\Factory::MX($preference, $exchange);
         } else if ($type === 'DS') {
             $keytag = $rdata['keytag'];
