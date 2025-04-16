@@ -527,13 +527,18 @@ function handleUpdateRecord($zoneName, $request, $pdo) {
     }
 
     if ($currentType === 'MX') {
-        // Normalize name to '@' if it's the root of the zone
+        // Normalize name
         if ($currentName === $zoneName || $currentName === $zoneName . '.') {
             $currentName = '@';
         }
 
-        // Normalize RDATA to include preference for comparison
-        if (is_string($currentRdata)) {
+        // Normalize rdata
+        if (is_array($currentRdata)) {
+            // convert array to string: "10 mail.domain.com."
+            $pref = $currentRdata['preference'] ?? 10;
+            $exch = $currentRdata['exchange'] ?? '';
+            $currentRdata = "{$pref} {$exch}";
+        } elseif (is_string($currentRdata)) {
             $currentRdata = '10 ' . $currentRdata;
         }
     }
