@@ -540,7 +540,7 @@ function handleUpdateRecord($zoneName, $request, $pdo) {
         $currentName = '@';
     }
 
-    if ($currentType === 'MX') {file_put_contents('/tmp/a.txt', var_export($currentRdata, true));
+    if ($currentType === 'MX') {file_put_contents('/tmp/a.txt', var_export($body, true));
         if (is_array($currentRdata)) {
             $pref = $currentRdata['preference'] ?? 10;
             $exch = rtrim($currentRdata['exchange'] ?? '', '.') . '.';
@@ -689,7 +689,7 @@ function handleDeleteRecord($zoneName, $request, $pdo) {
         return [400, ['error' => 'Record name, type, and rdata are required for identification']];
     }
 
-    if ($recordType === 'MX') {file_put_contents('/tmp/b.txt', var_export($recordRdata, true));
+    if ($recordType === 'MX') {file_put_contents('/tmp/b.txt', var_export($body, true));
         if (is_string($recordRdata)) {
             $parts = preg_split('/\s+/', trim($recordRdata), 2);
             if (count($parts) === 2 && is_numeric($parts[0])) {
