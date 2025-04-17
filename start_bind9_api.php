@@ -540,7 +540,7 @@ function handleUpdateRecord($zoneName, $request, $pdo) {
         $currentName = '@';
     }
 
-    if ($currentType === 'MX') {file_put_contents('/tmp/a.txt', var_export($body, true));
+    if ($currentType === 'MX') {
         if (is_array($currentRdata)) {
             $pref = $currentRdata['preference'] ?? 10;
             $exch = rtrim($currentRdata['exchange'] ?? '', '.') . '.';
@@ -556,20 +556,9 @@ function handleUpdateRecord($zoneName, $request, $pdo) {
         }
         $currentRdata = "{$pref} {$exch}";
     }
-// Debug: write what the API is looking for
-file_put_contents('/tmp/1.txt', var_export([
-    'name' => $currentName,
-    'type' => $currentType,
-    'rdata' => $currentRdata,
-], true));
+
     $recordToUpdate = null;
     foreach ($zone->getResourceRecords() as $record) {
-// Debug: dump what was checked from Badcow
-file_put_contents('/tmp/2.txt', var_export([
-    'name' => $record->getName(),
-    'type' => $record->getType(),
-    'rdata' => $record->getRdata()->toText(),
-], true));
         if (
             strtolower($record->getName()) === strtolower($currentName) &&
             strtoupper($record->getType()) === strtoupper($currentType) &&
@@ -613,11 +602,17 @@ file_put_contents('/tmp/2.txt', var_export([
                 if (is_array($newRdata)) {
                     $preference = $newRdata['preference'] ?? 10;
                     $exchange = rtrim($newRdata['exchange'] ?? '', '.') . '.';
-                } else {
-                    [$preference, $exchange] = explode(' ', $newRdata, 2);
-                    $preference = (int)$preference;
-                    $exchange = rtrim($exchange ?? '', '.') . '.';
-                }
+                    } else {
+                        $parts = preg_split('/\s+/', trim($newRdata), 2);
+                        if (count($parts) === 2 && is_numeric($parts[0])) {
+                            $preference = (int)$parts[0];
+                            $exchange = rtrim($parts[1], '.') . '.';
+                        } else {
+                            // Fallback
+                            $preference = 10;
+                            $exchange = rtrim($newRdata, '.') . '.';
+                        }
+                    }
                 $rdataInstance = \Badcow\DNS\Rdata\Factory::MX($preference, $exchange);
             } else if ($currentType === 'DS') {
                 $keytag = $newRdata['keytag'];
@@ -689,7 +684,7 @@ function handleDeleteRecord($zoneName, $request, $pdo) {
         return [400, ['error' => 'Record name, type, and rdata are required for identification']];
     }
 
-    if ($recordType === 'MX') {file_put_contents('/tmp/b.txt', var_export($body, true));
+    if ($recordType === 'MX') {
         if (is_string($recordRdata)) {
             $parts = preg_split('/\s+/', trim($recordRdata), 2);
             if (count($parts) === 2 && is_numeric($parts[0])) {
@@ -708,20 +703,9 @@ function handleDeleteRecord($zoneName, $request, $pdo) {
             $recordRdata['exchange'] = rtrim($recordRdata['exchange'] ?? '', '.') . '.';
         }
     }
-// Debug: write what the API is looking for
-file_put_contents('/tmp/3.txt', var_export([
-    'name' => $recordName,
-    'type' => $recordType,
-    'rdata' => $recordRdata,
-], true));
+
     $recordToDelete = null;
     foreach ($zone->getResourceRecords() as $record) {
-// Debug: dump what was checked from Badcow
-file_put_contents('/tmp/4.txt', var_export([
-    'name' => $record->getName(),
-    'type' => $record->getType(),
-    'rdata' => $record->getRdata()->toText(),
-], true));
         if (
             strtolower($record->getName()) === strtolower($recordName) &&
             strtoupper($record->getType()) === strtoupper($recordType)
