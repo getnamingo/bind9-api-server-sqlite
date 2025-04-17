@@ -472,6 +472,7 @@ function handleAddRecord($zoneName, $request, $pdo) {
                 $preference = $rdata['preference'] ?? 10;
                 $exchange = $rdata['exchange'] ?? '';
             }
+            $exchange = rtrim($exchange, '.') . '.';
             $rdataInstance = \Badcow\DNS\Rdata\Factory::MX($preference, $exchange);
         } else if ($type === 'DS') {
             $keytag = $rdata['keytag'];
