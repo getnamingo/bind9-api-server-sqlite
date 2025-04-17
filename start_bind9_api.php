@@ -397,7 +397,7 @@ function handleAddRecord($zoneName, $request, $pdo) {
                         [$preference, $exchange] = explode(' ', $rdata, 2);
                         $rdata_n = [
                             'preference' => (int)$preference,
-                            'exchange' => $exchange,
+                            'exchange' => rtrim($exchange, '.') . '.',
                         ];
                     } else {
                         $rdata_n = $rdata;
