@@ -535,38 +535,26 @@ function handleUpdateRecord($zoneName, $request, $pdo) {
     if (!$currentName || !$currentType || !$currentRdata) {
         return [400, ['error' => 'Current record name, type, and rdata are required for identification']];
     }
-file_put_contents('/tmp/update_debug_rdata.txt', "--- Looking for:\n" . var_export($currentRdata, true) . "\n", FILE_APPEND);
-	if ($currentType === 'MX') {
-		if (is_array($currentRdata)) {
-			$pref = $currentRdata['preference'] ?? 10;
-			$exch = rtrim($currentRdata['exchange'] ?? '', '.') . '.';
-		} elseif (is_string($currentRdata)) {
-			$parts = preg_split('/\s+/', trim($currentRdata), 2);
-			if (count($parts) === 2 && is_numeric($parts[0])) {
-				$pref = (int)$parts[0];
-				$exch = rtrim($parts[1], '.') . '.';
-			} else {
-				$pref = 10;
-				$exch = rtrim($currentRdata, '.') . '.';
-			}
-		}
-		$currentRdata = "{$pref} {$exch}";
-	}
 
-file_put_contents('/tmp/update_debug.txt', "--- Looking for:\n" . var_export([
-    'name' => $currentName,
-    'type' => $currentType,
-    'rdata' => $currentRdata,
-], true) . "\n", FILE_APPEND);
+    if ($currentType === 'MX') {
+        if (is_array($currentRdata)) {
+            $pref = $currentRdata['preference'] ?? 10;
+            $exch = rtrim($currentRdata['exchange'] ?? '', '.') . '.';
+        } elseif (is_string($currentRdata)) {
+            $parts = preg_split('/\s+/', trim($currentRdata), 2);
+            if (count($parts) === 2 && is_numeric($parts[0])) {
+                $pref = (int)$parts[0];
+                $exch = rtrim($parts[1], '.') . '.';
+            } else {
+                $pref = 10;
+                $exch = rtrim($currentRdata, '.') . '.';
+            }
+        }
+        $currentRdata = "{$pref} {$exch}";
+    }
 
     $recordToUpdate = null;
     foreach ($zone->getResourceRecords() as $record) {
-file_put_contents('/tmp/update_debug.txt', "--- Found in zone:\n" . var_export([
-    'name' => $record->getName(),
-    'type' => $record->getType(),
-    'rdata' => $record->getRdata()->toText(),
-], true) . "\n", FILE_APPEND);
-
         if (
             strtolower($record->getName()) === strtolower($currentName) &&
             strtoupper($record->getType()) === strtoupper($currentType) &&
@@ -685,42 +673,29 @@ function handleDeleteRecord($zoneName, $request, $pdo) {
     if (!$recordName || !$recordType || !$recordRdata) {
         return [400, ['error' => 'Record name, type, and rdata are required for identification']];
     }
-file_put_contents('/tmp/delete_debug_rdata.txt', "--- Looking for:\n" . var_export($recordRdata, true) . "\n", FILE_APPEND);
-	if ($recordType === 'MX') {
-		if (is_string($recordRdata)) {
-			$parts = preg_split('/\s+/', trim($recordRdata), 2);
-			if (count($parts) === 2 && is_numeric($parts[0])) {
-				$recordRdata = [
-					'preference' => (int)$parts[0],
-					'exchange' => rtrim($parts[1], '.') . '.',
-				];
-			} else {
-				$recordRdata = [
-					'preference' => 10,
-					'exchange' => rtrim($recordRdata, '.') . '.',
-				];
-			}
-		} elseif (is_array($recordRdata)) {
-			$recordRdata['preference'] = (int)($recordRdata['preference'] ?? 10);
-			$recordRdata['exchange'] = rtrim($recordRdata['exchange'] ?? '', '.') . '.';
-		}
-	}
-	
-file_put_contents('/tmp/delete_mx_debug.txt', "--- Looking for:\n" . var_export([
-    'name' => $recordName,
-    'type' => $recordType,
-    'rdata' => $recordRdata,
-], true) . "\n", FILE_APPEND);
 
-
+    if ($recordType === 'MX') {
+        if (is_string($recordRdata)) {
+            $parts = preg_split('/\s+/', trim($recordRdata), 2);
+            if (count($parts) === 2 && is_numeric($parts[0])) {
+                $recordRdata = [
+                    'preference' => (int)$parts[0],
+                    'exchange' => rtrim($parts[1], '.') . '.',
+                ];
+            } else {
+                $recordRdata = [
+                    'preference' => 10,
+                    'exchange' => rtrim($recordRdata, '.') . '.',
+                ];
+            }
+        } elseif (is_array($recordRdata)) {
+            $recordRdata['preference'] = (int)($recordRdata['preference'] ?? 10);
+            $recordRdata['exchange'] = rtrim($recordRdata['exchange'] ?? '', '.') . '.';
+        }
+    }
+    
     $recordToDelete = null;
     foreach ($zone->getResourceRecords() as $record) {
-file_put_contents('/tmp/delete_mx_debug.txt', "--- Found in zone:\n" . var_export([
-    'name' => $record->getName(),
-    'type' => $record->getType(),
-    'rdata' => $record->getRdata()->toText(),
-], true) . "\n", FILE_APPEND);
-
         if (
             strtolower($record->getName()) === strtolower($recordName) &&
             strtoupper($record->getType()) === strtoupper($recordType)
