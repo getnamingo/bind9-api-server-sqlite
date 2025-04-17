@@ -536,6 +536,9 @@ function handleUpdateRecord($zoneName, $request, $pdo) {
     if (!$currentName || !$currentType || !$currentRdata) {
         return [400, ['error' => 'Current record name, type, and rdata are required for identification']];
     }
+    if ($currentType === 'MX' && $currentName === '@') {
+        $currentName = rtrim($zoneName, '.') . '.';
+    }
 
     if ($currentType === 'MX') {
         if (is_array($currentRdata)) {
@@ -553,18 +556,9 @@ function handleUpdateRecord($zoneName, $request, $pdo) {
         }
         $currentRdata = "{$pref} {$exch}";
     }
-file_put_contents('/tmp/1.txt', "Looking for:\n" . var_export([
-    'name' => $currentName,
-    'type' => $currentType,
-    'rdata' => $currentRdata
-], true));
+
     $recordToUpdate = null;
     foreach ($zone->getResourceRecords() as $record) {
-    file_put_contents('/tmp/2.txt', "Checking:\n" . var_export([
-        'name' => $record->getName(),
-        'type' => $record->getType(),
-        'rdata' => $record->getRdata()->toText()
-    ], true));
         if (
             strtolower($record->getName()) === strtolower($currentName) &&
             strtoupper($record->getType()) === strtoupper($currentType) &&
@@ -670,10 +664,10 @@ function handleDeleteRecord($zoneName, $request, $pdo) {
     }
 
     $recordName = trim($body['name'] ?? '');
-    if ($recordName === '@') {
+    $recordType = strtoupper(trim($body['type'] ?? ''));
+    if ($recordType === 'MX' && $recordName === '@') {
         $recordName = rtrim($zoneName, '.') . '.';
     }
-    $recordType = strtoupper(trim($body['type'] ?? ''));
     if ($recordType === 'DS' || $recordType === 'MX') {
         $recordRdata = $body['rdata'] ?? '';
     } else {
