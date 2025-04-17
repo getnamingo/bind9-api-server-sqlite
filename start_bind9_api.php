@@ -547,9 +547,20 @@ function handleUpdateRecord($zoneName, $request, $pdo) {
         }
         $currentRdata = "{$pref} {$exch}";
     }
+file_put_contents('/tmp/update_debug.txt', "--- Looking for:\n" . var_export([
+    'name' => $currentName,
+    'type' => $currentType,
+    'rdata' => $currentRdata,
+], true) . "\n", FILE_APPEND);
 
     $recordToUpdate = null;
     foreach ($zone->getResourceRecords() as $record) {
+file_put_contents('/tmp/update_debug.txt', "--- Found in zone:\n" . var_export([
+    'name' => $record->getName(),
+    'type' => $record->getType(),
+    'rdata' => $record->getRdata()->toText(),
+], true) . "\n", FILE_APPEND);
+
         if (
             strtolower($record->getName()) === strtolower($currentName) &&
             strtoupper($record->getType()) === strtoupper($currentType) &&
@@ -681,9 +692,22 @@ function handleDeleteRecord($zoneName, $request, $pdo) {
             $recordRdata['exchange'] = rtrim($recordRdata['exchange'] ?? '', '.') . '.';
         }
     }
+	
+file_put_contents('/tmp/delete_mx_debug.txt', "--- Looking for:\n" . var_export([
+    'name' => $recordName,
+    'type' => $recordType,
+    'rdata' => $recordRdata,
+], true) . "\n", FILE_APPEND);
+
 
     $recordToDelete = null;
     foreach ($zone->getResourceRecords() as $record) {
+file_put_contents('/tmp/delete_mx_debug.txt', "--- Found in zone:\n" . var_export([
+    'name' => $record->getName(),
+    'type' => $record->getType(),
+    'rdata' => $record->getRdata()->toText(),
+], true) . "\n", FILE_APPEND);
+
         if (
             strtolower($record->getName()) === strtolower($recordName) &&
             strtoupper($record->getType()) === strtoupper($recordType)
