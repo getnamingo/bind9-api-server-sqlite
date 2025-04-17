@@ -556,9 +556,20 @@ function handleUpdateRecord($zoneName, $request, $pdo) {
         }
         $currentRdata = "{$pref} {$exch}";
     }
-
+// Debug: write what the API is looking for
+file_put_contents('/tmp/1.txt', var_export([
+    'name' => $currentName,
+    'type' => $currentType,
+    'rdata' => $currentRdata,
+], true));
     $recordToUpdate = null;
     foreach ($zone->getResourceRecords() as $record) {
+// Debug: dump what was checked from Badcow
+file_put_contents('/tmp/2.txt', var_export([
+    'name' => $record->getName(),
+    'type' => $record->getType(),
+    'rdata' => $record->getRdata()->toText(),
+], true));
         if (
             strtolower($record->getName()) === strtolower($currentName) &&
             strtoupper($record->getType()) === strtoupper($currentType) &&
@@ -697,9 +708,20 @@ function handleDeleteRecord($zoneName, $request, $pdo) {
             $recordRdata['exchange'] = rtrim($recordRdata['exchange'] ?? '', '.') . '.';
         }
     }
-
+// Debug: write what the API is looking for
+file_put_contents('/tmp/3.txt', var_export([
+    'name' => $recordName,
+    'type' => $recordType,
+    'rdata' => $recordRdata,
+], true));
     $recordToDelete = null;
     foreach ($zone->getResourceRecords() as $record) {
+// Debug: dump what was checked from Badcow
+file_put_contents('/tmp/4.txt', var_export([
+    'name' => $record->getName(),
+    'type' => $record->getType(),
+    'rdata' => $record->getRdata()->toText(),
+], true));
         if (
             strtolower($record->getName()) === strtolower($recordName) &&
             strtoupper($record->getType()) === strtoupper($recordType)
