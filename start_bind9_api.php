@@ -393,8 +393,17 @@ function handleAddRecord($zoneName, $request, $pdo) {
                     }
                     break;
                 case 'MX':
-                    if ($existingRecord->getRdata()->getExchange() === $rdata['exchange'] &&
-                        $existingRecord->getRdata()->getPreference() == $rdata['preference']) {
+                    if (is_string($rdata)) {
+                        [$preference, $exchange] = explode(' ', $rdata, 2);
+                        $rdata_n = [
+                            'preference' => (int)$preference,
+                            'exchange' => $exchange,
+                        ];
+                    } else {
+                        $rdata_n = $rdata;
+                    }
+                    if ($existingRecord->getRdata()->getExchange() === $rdata_n['exchange'] &&
+                        $existingRecord->getRdata()->getPreference() == $rdata_n['preference']) {
                         return [400, ['error' => 'Record already exists']];
                     }
                     break;
@@ -456,12 +465,12 @@ function handleAddRecord($zoneName, $request, $pdo) {
         }
         $methodName = $factoryMethods[$normalizedType];
         if ($type === 'MX') {
-            if (is_array($rdata)) {
+            if (is_string($rdata)) {
+                [$preference, $exchange] = explode(' ', $rdata, 2);
+                $preference = (int)$preference;
+            } else {
                 $preference = $rdata['preference'] ?? 10;
                 $exchange = $rdata['exchange'] ?? '';
-            } else {
-                $preference = 10;
-                $exchange = $rdata;
             }
             $rdataInstance = \Badcow\DNS\Rdata\Factory::MX($preference, $exchange);
         } else if ($type === 'DS') {
@@ -528,15 +537,15 @@ function handleUpdateRecord($zoneName, $request, $pdo) {
     }
 
     if ($currentType === 'MX') {
-        // Normalize rdata
         if (is_array($currentRdata)) {
-            // convert array to string: "10 mail.domain.com."
             $pref = $currentRdata['preference'] ?? 10;
-            $exch = $currentRdata['exchange'] ?? '';
-            $currentRdata = "{$pref} {$exch}";
-        } elseif (is_string($currentRdata)) {
-            $currentRdata = '10 ' . $currentRdata;
+            $exch = rtrim($currentRdata['exchange'] ?? '', '.') . '.';
+        } else {
+            [$pref, $exch] = explode(' ', $currentRdata, 2);
+            $pref = (int)$pref;
+            $exch = rtrim($exch ?? '', '.') . '.';
         }
+        $currentRdata = "{$pref} {$exch}";
     }
 
     $recordToUpdate = null;
@@ -583,10 +592,11 @@ function handleUpdateRecord($zoneName, $request, $pdo) {
             if ($currentType === 'MX') {
                 if (is_array($newRdata)) {
                     $preference = $newRdata['preference'] ?? 10;
-                    $exchange = $newRdata['exchange'] ?? '';
+                    $exchange = rtrim($newRdata['exchange'] ?? '', '.') . '.';
                 } else {
-                    $preference = 10;
-                    $exchange = $newRdata;
+                    [$preference, $exchange] = explode(' ', $newRdata, 2);
+                    $preference = (int)$preference;
+                    $exchange = rtrim($exchange ?? '', '.') . '.';
                 }
                 $rdataInstance = \Badcow\DNS\Rdata\Factory::MX($preference, $exchange);
             } else if ($currentType === 'DS') {
@@ -661,12 +671,13 @@ function handleDeleteRecord($zoneName, $request, $pdo) {
 
     if ($recordType === 'MX') {
         if (is_string($recordRdata)) {
+            [$preference, $exchange] = explode(' ', $recordRdata, 2);
             $recordRdata = [
-                'preference' => 10,
-                'exchange' => rtrim($recordRdata, '.') . '.',
+                'preference' => (int)$preference,
+                'exchange' => rtrim($exchange ?? '', '.') . '.',
             ];
         } elseif (is_array($recordRdata)) {
-            $recordRdata['preference'] = $recordRdata['preference'] ?? 10;
+            $recordRdata['preference'] = (int)($recordRdata['preference'] ?? 10);
             $recordRdata['exchange'] = rtrim($recordRdata['exchange'] ?? '', '.') . '.';
         }
     }
