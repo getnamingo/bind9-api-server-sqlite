@@ -1,14 +1,14 @@
-# BIND9 API Server
+# BIND9 API Server (SQLite version)
 
 [![StandWithUkraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/badges/StandWithUkraine.svg)](https://github.com/vshymanskyy/StandWithUkraine/blob/main/docs/README.md)
 
 [![SWUbanner](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/banner2-direct.svg)](https://github.com/vshymanskyy/StandWithUkraine/blob/main/docs/README.md)
 
-The **BIND9 API Server** provides a RESTful interface to manage BIND9 DNS zones and records.
+The **BIND9 API Server (SQLite version)** provides a RESTful interface to manage BIND9 DNS zones and records.
 
 ## Installation Steps
 
-For detailed installation steps, please refer to [install.md](install.md).
+For detailed installation steps, please refer to [install.md (Ubuntu)](install.md) or [install.md (Red Hat)](install-redhat.md).
 
 ## API Client
 
