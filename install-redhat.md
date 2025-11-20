@@ -11,9 +11,7 @@ sudo dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.
 sudo dnf install -y dnf-utils http://rpms.remirepo.net/enterprise/remi-release-8.rpm 
 sudo dnf module reset php
 sudo dnf module enable php:remi-8.3
-sudo dnf install -y php php-bz2 php-cli php-common php-curl php-fpm php-gd \
-php-gmp php-pecl-imagick php-intl php-mbstring php-opcache php-readline \
-php-soap php-pecl-swoole php-xml git net-tools composer
+sudo dnf install -y php php-bz2 php-cli php-common php-curl php-fpm php-gd php-gmp php-pecl-imagick php-intl php-mbstring php-opcache php-readline php-soap php-pecl-swoole php-xml git net-tools composer
 sudo dnf install -y php-sqlite3 sqlite
 ```
 

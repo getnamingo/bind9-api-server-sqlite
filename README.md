@@ -10,7 +10,11 @@ The **BIND9 API Server (SQLite version)** provides a RESTful interface to manage
 
 For detailed installation steps, please refer to [install.md (Ubuntu)](install.md) or [install.md (Red Hat)](install-redhat.md).
 
-## API Client
+### MariaDB/MySQL Version
+
+This version uses SQLite. For MariaDB/MySQL support, please see [bind9-api-server](https://github.com/getnamingo/bind9-api-server).
+
+### API Client
 
 Please check our [API Client](https://github.com/getnamingo/bind9-api-client).
 

@@ -1,17 +1,18 @@
 {
-    "name": "namingo/bind9-api-server",
-    "description": "The bind9-api-server provides a RESTful interface to manage BIND9 DNS zones and records.",
+    "name": "namingo/bind9-api-server-sqlite",
+    "description": "The bind9-api-server-sqlite provides a RESTful interface to manage BIND9 DNS zones and records.",
     "type": "project",
     "license": "MIT",
     "authors": [
         {
-            "name": "Namingo"
+            "name": "Taras Kondratyuk",
+            "email": "help@namingo.org"
         }
     ],
     "require": {
         "badcow/dns": "^4.3",
-        "vlucas/phpdotenv": "^5.6",
-        "monolog/monolog": "^3.7",
+        "vlucas/phpdotenv": "^5.6.2",
+        "monolog/monolog": "^3.9",
         "namingo/rately": "^0.1.0"
     }
 }
