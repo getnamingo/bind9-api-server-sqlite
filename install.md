@@ -7,41 +7,41 @@
 ```bash
 apt install -y curl software-properties-common ufw
 add-apt-repository ppa:ondrej/php
-apt update
 apt install -y bzip2 composer git net-tools php8.3 php8.3-bz2 php8.3-cli php8.3-common php8.3-curl php8.3-fpm php8.3-gd php8.3-gmp php8.3-imagick php8.3-intl php8.3-mbstring php8.3-opcache php8.3-readline php8.3-soap php8.3-swoole php8.3-xml unzip wget php8.3-sqlite3 sqlite3
 ```
 
-### Configure PHP:
+### Configure PHP Settings:
 
-Edit the PHP Configuration Files:
+1. Open the PHP-FPM configuration file:
 
 ```bash
-nano /etc/php/8.3/cli/php.ini
 nano /etc/php/8.3/fpm/php.ini
 ```
 
-Locate or add these lines in ```php.ini``` and set to:
+Add or uncomment the following session security settings:
 
-```bash
-opcache.enable=1
-opcache.enable_cli=1
-opcache.jit_buffer_size=100M
-opcache.jit=1255
-
+```ini
 session.cookie_secure = 1
 session.cookie_httponly = 1
 session.cookie_samesite = "Strict"
-session.cookie_domain =
 ```
 
-In ```/etc/php/8.3/mods-available/opcache.ini``` make one additional change:
+2. Open the OPCache configuration file:
 
 ```bash
+nano /etc/php/8.3/mods-available/opcache.ini
+```
+
+Verify or add the following OPCache and JIT settings:
+
+```ini
+opcache.enable=1
+opcache.enable_cli=1
 opcache.jit=1255
 opcache.jit_buffer_size=100M
 ```
 
-After configuring PHP, restart the service to apply changes:
+3. Restart PHP-FPM to apply the changes:
 
 ```bash
 systemctl restart php8.3-fpm
