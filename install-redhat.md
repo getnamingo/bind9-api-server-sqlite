@@ -61,7 +61,9 @@ cp env-sample .env
 nano .env
 ```
 
-Edit the `.env` with the appropriate database details and preferences as required.
+Edit the `.env` with the appropriate preferences as required.
+
+Open `create_user.php`, set the username and password the API will use, run the script, then delete it after confirming it works.
 
 ```bash
 DB_TYPE=sqlite

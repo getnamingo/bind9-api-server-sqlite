@@ -32,7 +32,7 @@ NS5=ns5.example.com.
 
 # Database connection settings for the application:
 DB_TYPE=sqlite
-DB_DATABASE=/full/path/to/database.sqlite
+DB_DATABASE=/opt/bind9_api/bind9_api.sqlite
 
 # Rate limiting settings for the API:
 # Enable or disable rate limiting. Set to 'true' to enable, 'false' to disable.
